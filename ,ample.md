@@ -8,6 +8,6 @@
 
 
 ### Ample
-sample multiple models via different inductive biases
+Sample multiple models via different inductive biases.
 
 http://tiny.cc/ample
