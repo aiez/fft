@@ -1,5 +1,5 @@
 # vim: ts=2 sw=2 sts=2 et :
-# knobs only; all targets live in $(KONFIG)/Makefile
+# knobs  only; all targets live in $(KONFIG)/Makefile
 KONFIG ?= ../konfig
 
 APP   := ample
