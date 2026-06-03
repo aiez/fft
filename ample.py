@@ -118,9 +118,6 @@ def neighbors(data,rows,row):
 def far(data, some, row):          
     return max(some, key=lambda r: distx(data, row, r))
 
- def far(data, some, ref):     
-   return max(some, key=lambda r: distx(data, ref, r))
-
 def dim(data, rows):           
   some = sample(rows, min(len(rows), the.Few))
   a    = far(data, some, choice(some))
@@ -134,9 +131,6 @@ def dim(data, rows):
     y  = sqrt(max(0, da*da - x*x))          
     out += [(x, y, row)]
   return a,b,c,sorted(out)
-
-def chunks(xs, size):                   
-  return [xs[i:i+size] for i in range(0, len(xs), max(1, size))]
 
 def grid(data, rows):
   a, b, c, out = dim(data, rows)        
@@ -179,6 +173,9 @@ def confused(pairs):            # pairs = [(want, got), ...]
   return out
 
 # ## lib -------------------------------------------------------
+def chunks(xs, size):                   
+  return [xs[i:i+size] for i in range(0, len(xs), max(1, size))]
+
 class o(dict):
   __getattr__ = dict.get;__setattr__ = dict.__setitem__;
   def __repr__(i):
