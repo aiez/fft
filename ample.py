@@ -32,22 +32,23 @@ from random import random, randrange, choice, sample, seed
 BIG = inf
 
 # ## constructors -----------------------------------------------
-def nump(col): return type(col) is list
-def symp(col): return type(col) is dict
+def nump(col) : return type(col) is list
+def symp(col) : return type(col) is dict
+def Col(s)    : return  [] if s[0].isupper() else {}  
+
+def Cols(names):                    
+  all, w, x, y, klass = {}, {}, {}, {}, None 
+  for at, s in enumerate(names):
+    z = s[-1]
+    all[at] = col = Col(s)
+    if   z in "-+!": y[at] = col; w[at] = z=="+"
+    elif z != "X"  : x[at] = col
+    if   z == "!"  : klass = at
+  if klass is None: list(y.keys())[0]
+  return o(all=all, names=names, w=w, x=x, y=y, klass=klass)
 
 def Data(src=[]):
   return ok(adds(src, o(cols=None, rows=[], stale=False)))
-
-def Cols(names):                    
-  all, w, x, y, klass = [], [], {}, {}, None 
-  for at, s in enumerate(names):
-    w   += [0 if s[-1]=="-" else 1]
-    all += [[] if s[0].isupper() else {}]  
-    if   s[-1] in "-+!" : y[at] = all[-1]                     
-    elif s[-1] != "X"   : x[at] = all[-1]
-    if   s[-1] == "!"   : klass = at
-  if klass is None: list(y.keys())[0]
-  return o(all=all, names=names, w=w, x=x, y=y, klass=klass)
 
 # ## add --------------------------------------------------------
 def add(data, row):
@@ -55,7 +56,7 @@ def add(data, row):
     data.cols = Cols(row); return row
   data.rows += [row]
   data.stale = True                  
-  for at, col in enumerate(data.cols.all):
+  for at, col in data.cols.all.items():
     if (x := row[at]) != "?":
       if symp(col): col[x] = col.get(x, 0) + 1  
       elif len(col) < the.Some: col.append(x)  
@@ -69,10 +70,11 @@ def adds(src, data):
 
 def clone(root, rows=[]): return Data([root.cols.names] + rows)
 
+# ## methods ----------------------------------------------------
 def ok(data):                  
   if data.stale:
     data.stale = False
-    for col in data.cols.all:
+    for col in data.cols.all.values():
       if nump(col): col.sort()
   return data
 
@@ -95,14 +97,14 @@ def norm(c, v):
   return v if v == "?" else (v - a) / (b - a + 1/BIG)
 
 def disty(data, r):
-  ok(data); s, n, p = 0, 0, the.p
-  for at, c in data.cols.y.items():
+  s, n, p = 0, 0, the.p
+  for at, c in ok(data).cols.y.items():
     n += 1; s += abs(norm(c, r[at]) - data.cols.w[at])**p
   return (s/n)**(1/p) if n else 0
 
 def distx(data, row1, row2):         # over x-cols, missing-tolerant
-  ok(data); s, n, p = 0, 0, the.p
-  for at, col in data.cols.x.items():
+  s, n, p = 0, 0, the.p
+  for at, col in ok(data).cols.x.items():
     n += 1; v1, v2 = row1[at], row2[at]
     if v1=="?" and v2=="?": s += 1; continue
     if symp(col): s += 0 if v1==v2 else 1
@@ -115,20 +117,20 @@ def distx(data, row1, row2):         # over x-cols, missing-tolerant
 def neighbors(data,rows,row):
   return sorted(rows, key=lambda r:distx(data,row,r))
 
-def far(data, some, row):          
-    return max(some, key=lambda r: distx(data, row, r))
+def far(data, rows, row):          
+  return neighbors(Data,rows,rows)[int(.9*len(rows)]
 
 def dim(data, rows):           
   some = sample(rows, min(len(rows), the.Few))
   a    = far(data, some, choice(some))
-  B    = far(data, some, a)
-  d    = lambda r1, r2: distx(data, r1, r2)
-  c    = d(a, b) + 1/BIG       
+  b    = far(data, some, a)
+  gap  = lambda r1, r2: distx(data, r1, r2)
+  c    = gap(a, b) + 1/BIG       
   out  = []
   for row in rows:
-    da = D(row, a)
-    x  = (da*da + c*c - d(row, b)**2) / (2*c)
-    y  = sqrt(max(0, da*da - x*x))          
+    da   = gap(row, a)
+    x    = (da*da + c*c - gap(row, b)**2) / (2*c)
+    y    = sqrt(max(0, da*da - x*x))          
     out += [(x, y, row)]
   return a,b,c,sorted(out)
 
@@ -225,9 +227,9 @@ def test_the():                 # show the config
 
 def test_stats():               # mid/spread per col of -f
   head, *body = csv(the.file)
-  d = ok(Data([head] + body))
+  d = Data([head] + body)
   print("%-14s %5s %10s %10s" % ("col","n","mid","spread"))
-  for at, c in enumerate(d.cols.all):
+  for at, c in d.cols.all.items():
     n = len(c) if nump(c) else sum(c.values())
     print("%-14s %5d %10s %10.3f" %
           (d.cols.names[at], n, str(mid(c)), spread(c)))
