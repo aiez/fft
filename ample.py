@@ -30,57 +30,52 @@ import sys, re
 from math import inf, log, log2, sqrt
 from random import random, randrange, choice, sample, seed
 BIG = inf
-
 # ## constructors -----------------------------------------------
-def nump(col) : return type(col) is list
 def symp(col) : return type(col) is dict
-def Col(s)    : return  [] if s[0].isupper() else {}  
+def nump(col) : return type(col) is list
 
-def Cols(names):                    
-  all, w, x, y, klass = {}, {}, {}, {}, None 
-  for at, s in enumerate(names):
+def Data(src):
+  src = iter(src)
+  cols, w, x, y, klass = {}, {}, {}, {}, None 
+  for at, s in enumerate(names = next(src)):
     z = s[-1]
-    all[at] = col = Col(s)
-    if   z in "-+!": y[at] = col; w[at] = z=="+"
-    elif z != "X"  : x[at] = col
-    if   z == "!"  : klass = at
-  if klass is None: list(y.keys())[0]
-  return o(all=all, names=names, w=w, x=x, y=y, klass=klass)
+    cols[at] = col = [] if s[0].isupper() else {}  
+    if   z in "-+!" : y[at]=col; w[at]=z=="+"
+    elif z != "X"   : x[at]=col
+    if z=="!":klass=at
+  meta = o(cols=cols,names=names, w=w, x=x, y=y, klass=klass)
+  return ok(adds(src, o(rows=[], stale=False, cols=meta)))
 
-def Data(src=[]):
-  return ok(adds(src, o(cols=None, rows=[], stale=False)))
-
-# ## add --------------------------------------------------------
-def add(data, row):
-  if not data.cols:
-    data.cols = Cols(row); return row
-  data.rows += [row]
-  data.stale = True                  
-  for at, col in data.cols.all.items():
-    if (x := row[at]) != "?":
-      if symp(col): col[x] = col.get(x, 0) + 1  
-      elif len(col) < the.Some: col.append(x)  
-      elif random() < the.Some / len(data.rows):  
-        col[randrange(the.Some)] = x
-  return row
+def clone(root, rows=[]): return Data([root.cols.names] + rows)
 
 def adds(src, data):
   for row in src: add(data, row)
   return data
 
-def clone(root, rows=[]): return Data([root.cols.names] + rows)
+def add(data, row):
+  data.stale = True                  
+  data.rows += [row]
+  for at, col in data.cols.all.items():
+    if (x := row[at]) != "?":
+      if symp(col): col[x] = col.get(x, 0) + 1  
+      elif len(col) < the.Some: col += [x]  
+      elif random() < the.Some / len(data.rows):  
+        col[randrange(the.Some)] = x
+  return row
 
-# ## methods ----------------------------------------------------
 def ok(data):                  
-  if data.stale:
-    data.stale = False
-    for col in data.cols.all.values():
-      if nump(col): col.sort()
+  if data.stale: update(data); data.stale=False
   return data
 
-def mu(a): return sum(a)/len(a) if a else 0
+def udpate(data):
+  for col in data.cols.all.values():
+    if nump(col): col.sort()
 
-def mid(col): return col[len(col)//2] if nump(col) else max(col,key=col.get)
+# ## methods ----------------------------------------------------
+def mu(lst): return sum(lst)/len(lst) if a else 0
+
+def mid(col): 
+  return col[len(col)//2] if nump(col) else max(col,key=col.get)
 
 def spread(col):
   if symp(col):
@@ -92,25 +87,28 @@ def spread(col):
   return (col[-1] - col[0]) / (0.34 + 1.13*log(n))   # tiny n: range
 
 # ## metrics ----------------------------------------------------
-def norm(c, v):            
-  a, b = c[0], c[-1]
+def norm(lst, v):            
+  a, b = lst[0], lst[-1]
   return v if v == "?" else (v - a) / (b - a + 1/BIG)
 
-def disty(data, r):
+def disty(data, row):
   s, n, p = 0, 0, the.p
-  for at, c in ok(data).cols.y.items():
-    n += 1; s += abs(norm(c, r[at]) - data.cols.w[at])**p
+  for at,lst in ok(data).cols.y.items():
+    n += 1
+    s += abs(norm(lst, row[at]) - data.cols.w[at])**p
   return (s/n)**(1/p) if n else 0
 
 def distx(data, row1, row2):         # over x-cols, missing-tolerant
   s, n, p = 0, 0, the.p
   for at, col in ok(data).cols.x.items():
-    n += 1; v1, v2 = row1[at], row2[at]
+    n += 1
+    v1, v2 = row1[at], row2[at]
     if v1=="?" and v2=="?": s += 1; continue
     if symp(col): s += 0 if v1==v2 else 1
     else:
-      v1 = norm(col,v1) if v1!="?" else (0 if norm(col,v2)>.5 else 1)
-      v2 = norm(col,v2) if v2!="?" else (0 if v1>.5 else 1)
+      v1, v2 = norm(col,v1), norm(col,v2)
+      v1 = v1 if v1!="?" else (0 if v2>.5 else 1)
+      v2 = v2 if v2!="?" else (0 if v1>.5 else 1)
       s += abs(v1-v2)**p
   return (s/n)**(1/p)
 
@@ -192,9 +190,9 @@ def csv(file):
   for ln in open(file):
     ln = ln.strip()
     if ln and ln[0] != "#":
-      yield [coerce(x.strip()) for x in ln.split(",")]
+      yield [of(x.strip()) for x in ln.split(",")]
 
-def coerce(z):
+def of(z):
   for f in (int, float):
     try: return f(z)
     except: pass
@@ -202,8 +200,7 @@ def coerce(z):
   return {'True':True,'False':False,'None':None}.get(z,z)
 
 def settings(doc):              # key=val defaults from doc
-  return o(**{k: coerce(v)
-              for k, v in re.findall(r'(\w+)=(\S+)', doc)})
+  return o(**{k:of(v) for k,v in re.findall(r'(\w+)=(\S+)',doc)})
 
 def cli(the, doc, egs={}):      # --x runs test_x()
   flags = {f: l.lstrip("-")
@@ -215,7 +212,7 @@ def cli(the, doc, egs={}):      # --x runs test_x()
     elif k := flags.get(s):
       v = the[k]
       if isinstance(v, bool): v = not v
-      elif j+1 < len(sys.argv): v = coerce(sys.argv[j+1])
+      elif j+1 < len(sys.argv): v = of(sys.argv[j+1])
       the[k] = v
     elif re.match(r"-\D", s):
       sys.exit("bad flag: %s\n%s" % (s, doc))
