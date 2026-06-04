@@ -26,9 +26,9 @@ Options:
 
 eg: python3 fft1.py -f FILE -n 50 --tree
 """
-import sys, re
-from math import inf, log, log2, sqrt
-from random import random, randrange, choice, sample, seed
+import sys, re, bisect
+from math import inf, log, log2
+from random import random, randrange, sample, seed
 from collections import defaultdict
 BIG = inf
 
@@ -59,8 +59,8 @@ def add(data, row):
   data.rows += [row]
   for at, col in data.cols.all.items():
     if (x := row[at]) != "?":
-      if symp(col): col[x] = col.get(x, 0) + 1  
-      else some(col, x, len(data.rows))
+      if symp(col): col[x] = col.get(x, 0) + 1
+      else: some(col, x, len(data.rows))
   return row
 
 def some(lst, v, n):
@@ -89,23 +89,20 @@ def spread(col):
   if n >= 20: return (col[int(.9*n)] - col[int(.1*n)]) / 2.56
   return (col[-1] - col[0]) / (0.34 + 1.13*log(n))
 
-def take(a, k):                    
-  return a if k>=len(a) else [a[i*len(a)//k] for i in range(k)]
-
-def merge(a, b):
-  if symp(a): return {k: a.get(k,0)+b.get(k,0) for k in a|b}
-  if len(a)+len(b) <= the.Some: return sorted(a + b)   
-  ka = round(the.Some * len(a)/(len(a)+len(b)))         
-  return sorted(take(a, ka) + take(b, the.Some - ka))
-
 # ## metrics ----------------------------------------------------
 def norm(lst, v):            
   a, b = lst[0], lst[-1]
   return v if v == "?" else (v - a) / (b - a + 1/BIG)
 
-def bin(col,v):
-  return v if symp(col) \
-           else min(the.bins - 1, int(the.bins+norm(col,v)))
+def bin(col, v):                    # equal-freq bin id
+  if symp(col): return v
+  r = bisect.bisect_left(col, v)
+  return min(the.bins-1, r*the.bins // max(1,len(col)))
+
+def cutgo(col, v, cut):             # left-branch test
+  if v == "?":  return True
+  if symp(col): return v == cut
+  return v <= cut
 
 def disty(data, row):
   s, n, p = 0, 0, the.p
@@ -119,124 +116,51 @@ def m2(a):
   m = sum(a)/len(a)
   return sum((x-m)**2 for x in a)
 
- def tree(root, stop=None, yfun=None):
-   ok(root)
-   yfun = yfun or (lambda r: r[root.cols.klass])
-   stop = stop or the.stop or len(root.rows)**.5
+def cuts(at, col, rows, yfun):      # yield (impurity, cut)
+  ys, hi = defaultdict(list), {}
+  for r in rows:
+    x = r[at]
+    if x == "?": continue
+    k = bin(col, x)
+    ys[k] += [yfun(r)]
+    if not symp(col): hi[k] = max(hi.get(k, x), x)
+  fn = splitList if nump(col) else splitDict
+  for k,yes,no in fn(sorted(ys),at,col):
+    return m2(yes)+m2(no), k
 
-   def cuts(at, col, rows):
-     xys = sorted((r[at],n,Y(r)) 
-                  for n,r in enumerate(rows) if r[at]!="?")
-     d = defaultdict(lambda: defaultdict(lambda: o(x=[], y=[])))
-     for x,n,y in rows:
-       b = bin(col,x)
-       some(h[at][b].x, x, n)
-       some(h[at][b].y, y, n)
-     for at,bs in h.items():
-       if symp(col): 
-         bs.x=set(bs.x)
-       0] = (xs,ys) = h.get(k) or {at:([],[])}
-       some(xs, x, n); some(ys, y, n)
+def mergeSym(ks,at,col)
+  for k in ks:
+    a = ys[k]
+    b = [y for j in ks if j != k for y in ys[j]]
+    if a and b: yield k,a,b
 
-       +=[x]
-            =(at,b)
-        cell = hist.setdefault(k, [[], x])
-        cell[0] += [yfun(r)]
-        if not symp(col) and x > cell[1]:
-          cell[1] = x
-     bs = sorted(hist.items())
-     if not bs: return
-     if symp(col):           # cut = category
-       for key, (ys, _) in bs:
-         rest = [y for k2, (yy, _) in bs
-                 if k2 != key for y in yy]
-         if ys and rest:
-           yield m2(ys) + m2(rest), key
-    else:                   # cut = max x left
-      flat = [y for _, (ys, _) in bs for y in ys]
-      b = 0
-      for _, (ys, hi) in bs[:-1]:
-        b += len(ys)
-        L, R = flat[:b], flat[b:]
-        if L and R:
-          yield m2(L) + m2(R), hi
-  
-   def grow(rows):
-     if len(rows) <= stop:
-       return clone(root, rows)
-     best, bat, bv = BIG, None, "?"
-     for at, col in root.cols.x.items():
-       for imp, v in cuts(at, col, rows):
-         if imp < best:
-           best, bat, bv = imp, at, v
-     if bat is None:
-       return clone(root, rows)
-     bcol, yes, no = root.cols.x[bat], [], []
-     for r in rows:
-       s = yes if cutgo(bcol, r[bat], bv) else no
-       s.append(r)
-     if not (yes and no):
-       return clone(root, rows)
-     return o(it=Tree, at=bat, cut=bv,
-              left=grow(yes), right=grow(no))
- 
+def mergeNum(ks,at,col):
+  flat = [y for k in ks for y in ys[k]]
+  n = 0
+  for k in ks[:-1]:
+    n += len(ys[k])
+    L, R = flat[:n], flat[n:]
+    if L and R: yield L,R, hi[k]
+
+def tree(root, stop=None, yfun=None):
+  ok(root)
+  yfun = yfun or (lambda r: r[root.cols.klass])
+  stop = stop or the.stop or len(root.rows)**.5
+  def grow(rows):
+    if len(rows) <= stop: return clone(root, rows)
+    best, bat, bv = BIG, None, None
+    for at, col in root.cols.x.items():
+      for imp, v in cuts(at, col, rows, yfun):
+        if imp < best: best, bat, bv = imp, at, v
+    if bat is None: return clone(root, rows)
+    bcol, yes, no = root.cols.x[bat], [], []
+    for r in rows:
+      (yes if cutgo(bcol, r[bat], bv) else no).append(r)
+    if not (yes and no): return clone(root, rows)
+    return o(it=tree, at=bat, cut=bv,
+             left=grow(yes), right=grow(no))
+
   return grow(root.rows)
-
-# ---------------------------------------------------------------
-def distx(data, row1, row2):         # over x-cols, missing-tolerant
-  s, n, p = 0, 0, the.p
-  for at, col in ok(data).cols.x.items():
-    n += 1
-    v1, v2 = row1[at], row2[at]
-    if v1=="?" and v2=="?": s += 1; continue
-    if symp(col): s += 0 if v1==v2 else 1
-    else:
-      v1, v2 = norm(col,v1), norm(col,v2)
-      v1 = v1 if v1!="?" else (0 if v2>.5 else 1)
-      v2 = v2 if v2!="?" else (0 if v1>.5 else 1)
-      s += abs(v1-v2)**p
-  return (s/n)**(1/p)
-
-def neighbors(data,rows,row):
-  return sorted(rows, key=lambda r:distx(data,row,r))
-
-def far(data, rows, row):          
-  return neighbors(Data,rows,rows)[int(.9*len(rows)]
-
-def dim(data, rows):           
-  some = sample(rows, min(len(rows), the.Few))
-  a    = far(data, some, choice(some))
-  b    = far(data, some, a)
-  gap  = lambda r1, r2: distx(data, r1, r2)
-  c    = gap(a, b) + 1/BIG       
-  out  = []
-  for row in rows:
-    da   = gap(row, a)
-    x    = (da*da + c*c - gap(row, b)**2) / (2*c)
-    y    = sqrt(max(0, da*da - x*x))          
-    out += [(x, y, row)]
-  return a,b,c,sorted(out)
-
-def grid(data, rows):
-  a, b, c, out = dim(data, rows)        
-  N = len(out)
-  G = max(1, int(N**0.25))      # G*G ~ sqrt(N) cells
-  strips = chunks(out, N // G)  # equal-count x-strips
-  def cellsOf(strip):
-    cs = chunks(sorted(strip, key=lambda t:t[1]), len(strip)//G)
-    return ([cell[0][1] for cell in cs[1:]],     # y lower-edges
-            [clone(data, [t[2] for t in cell]) for cell in cs])
-  xedges = [s[0][0] for s in strips[1:]]         # x lower-edges
-  cells  = [cellsOf(s) for s in strips]
-  return o(a=a, b=b, c=c, xedges=xedges, cells=cells)
-
-def gridFind(data, g, row):
-  d  = lambda r1, r2: distx(data, r1, r2)
-  da = d(row, g.a)
-  x  = (da*da + g.c*g.c - d(row, g.b)**2) / (2*g.c)
-  y  = sqrt(max(0, da*da - x*x))
-  yedges, col = g.cells[bisect(g.xedges, x)]   # which x-strip
-  return col[bisect(yedges, y)]                # which y-cell -> Data
 
 # ## confusion (pd, pf, ... from (want,got) pairs) --------------
 def confused(pairs):            # pairs = [(want, got), ...]
@@ -258,9 +182,6 @@ def confused(pairs):            # pairs = [(want, got), ...]
   return out
 
 # ## lib -------------------------------------------------------
-def chunks(xs, size):                   
-  return [xs[i:i+size] for i in range(0, len(xs), max(1, size))]
-
 class o(dict):
   __getattr__ = dict.get;__setattr__ = dict.__setitem__;
   def __repr__(i):
