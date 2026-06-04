@@ -298,9 +298,11 @@ def test_confused():            # confusion stats from toy (want,got)
 
 def test_tree():                # tree on N rows of -f
   head, *body = csv(the.file)
-  rows = sample(body, min(the.N, len(body)))
-  d = Data([head] + rows)
-  cells(treeShow(d, tree(d)))
+  for _ in range(1000):
+    rows = sample(body, min(the.N, len(body)))
+    d = Data([head] + rows)
+    t = tree(d)
+  cells(treeShow(d,t))
 
 # ## main -------------------------------------------------------
 the = settings(__doc__)
