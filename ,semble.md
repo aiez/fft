@@ -4,8 +4,9 @@
 ### Semple
 Assemble models by trying many inductive biases.
 
-http://tiny.cc/semble
-
+```
+git clone http://tiny.cc/semble
+```
 
 ![Purpose](https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-32cd32?logo=open-source-initiative&logoColor=white) 
