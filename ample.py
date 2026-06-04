@@ -1,166 +1,201 @@
 #!/usr/bin/env python3 -B
 """
-fft1.py, random-cluster forest engine + confusion (library)
+ample.py, regression tree over incremental column stats (library)
 (c) 2025, Tim Menzies <timm@ieee.org>, MIT license
 
-Generic services: Data, disty, tree (random axis-cut cluster),
-treeLeaf (router), treeShow (printer), confused (pd/pf/.. from
-(want,got) pairs), cli/the. No task knowledge -- see compas.py.
+Generic services: Data, disty, tree (min-variance cut), treeShow
+(printer), confused (pd/pf/.. from (want,got) pairs), cli/the.
 
-Columns are bare containers: a Num is a list (reservoir of its
-values), a Sym is a dict (value->count). No Num/Sym structs --
-dispatch on type(c). Per-column meta (name, goal, x/y role) lives
-in cols.names / cols.x / cols.y, keyed by position `at`.
+Columns are structs: a Num holds incremental n,mu,m2,sd (+goal);
+a Sym holds n + has{value:count}. Dispatch on c.it. norm maps a
+Num value to 0..1 via a logistic of its z-score (~normal CDF),
+so no lo/hi to track and outliers are squashed, not stretched.
 
 Options:
  -b --bins  numeric bins      bins=7
- -F --Few   a few samples     Few=64
  -s --seed  random seed       seed=1234567891
  -p --p     distance exponent p=2
  -R --Round repr decimals     Round=2
  -S --stop  leaf size         stop=None
  -n --N     demo row sample   N=50
- -c --Some  reservoir cap     Some=256
  -f --file  data file
             file=/Users/timm/gits/moot/optimize/misc/auto93.csv
 
-eg: python3 fft1.py -f FILE -n 50 --tree
+eg: python3 ample.py -f FILE -n 50 --tree
 """
-import sys, re, bisect
-from math import inf, log, log2
-from random import random, randrange, sample, seed
-from collections import defaultdict
+import sys, re
+from math import inf, log2, exp
+from random import sample, seed
+from functools import reduce
 BIG = inf
 
 # ## constructors -----------------------------------------------
-def symp(col) : return type(col) is dict
-def nump(col) : return type(col) is list
+def Num(txt="", at=0):
+  return o(it=Num, at=at, txt=txt, n=0, mu=0, m2=0, sd=0,
+           goal=txt[-1:]=="+")
+
+def Sym(txt="", at=0):
+  return o(it=Sym, at=at, txt=txt, n=0, has={})
 
 def Data(src):
   src = iter(src)
-  cols, w, x, y, klass = {}, {}, {}, {}, None 
-  for at, s in enumerate(names = next(src)):
+  return adds(src, o(it=Data, cols=Cols(next(src)), rows=[]))
+
+def Cols(names):
+  all, x, y, klass = [], [], [], None
+  for at, s in enumerate(names):
+    all += [col := (Num if s[0].isupper() else Sym)(s,at)]
     z = s[-1]
-    cols[at] = col = [] if s[0].isupper() else {}  
-    if   z in "-+!" : y[at]=col; w[at]=z=="+"
-    elif z != "X"   : x[at]=col
-    if z=="!":klass=at
-  meta = o(cols=cols,names=names, w=w, x=x, y=y, klass=klass)
-  return ok(adds(src, o(rows=[], stale=False, cols=meta)))
+    if   z in "-+!" : y += [col]
+    elif z != "X"   : x += [col]
+    if z == "!"     : klass = col
+  return o(all=all, names=names, x=x, y=y,
+           klass=klass or (y[0] if y else None))
 
-def clone(root, rows=[]): return Data([root.cols.names] + rows)
+def Tree(): pass                     # interior tag (leaf = Data)
 
-def adds(src, data):
-  for row in src: add(data, row)
-  return data
+# ## add (one polymorphic) --------------------------------------
+def add(i, v):
+  if i.it is Data:
+    i.rows += [v]
+    for col in i.cols.all: add(col, v[col.at])
+  elif v != "?":
+    i.n += 1
+    if i.it is Sym: i.has[v] = i.has.get(v, 0) + 1
+    else:
+      d     = v - i.mu
+      i.mu += d / i.n
+      i.m2 += d * (v - i.mu)
+      i.sd  = 0 if i.n < 2 else (i.m2/(i.n-1))**.5
+  return v
 
-def add(data, row):
-  data.stale = True                  
-  data.rows += [row]
-  for at, col in data.cols.all.items():
-    if (x := row[at]) != "?":
-      if symp(col): col[x] = col.get(x, 0) + 1
-      else: some(col, x, len(data.rows))
-  return row
+def adds(src, i):
+  i = i or Num()
+  for row in src: add(i, row)
+  return i
 
-def some(lst, v, n):
-  if len(lst) < the.Some: lst += [v]
-  elif random() < the.Some/n: lst[randrange(the.Some)] = v
-  return lst
+def clone(root, rows=[]):
+  return Data([root.cols.names] + rows)
 
-def ok(data):                  
-  if data.stale: update(data); data.stale=False
-  return data
-
-def udpate(data):
-  for col in data.cols.all.values():
-    if nump(col): col.sort()
+# ## merge (s=+1 add, s=-1 subtract) ----------------------------
+def merge(a, b, s=1):                # parallel Welford on two Nums
+  n = a.n + s*b.n
+  if n <= 0: return Num(a.txt, a.at)
+  mu = (a.n*a.mu + s*b.n*b.mu) / n
+  d  = b.mu - a.mu
+  c  = Num(a.txt, a.at)
+  c.n, c.mu = n, mu
+  c.m2 = max(0, a.m2 + s*b.m2 + s*d*d*a.n*b.n / n)
+  c.sd = (c.m2/(c.n-1))**.5 if c.n > 1 else 0
+  return c
 
 # ## methods ----------------------------------------------------
-def mid(col): 
-  return col[len(col)//2] if nump(col) else max(col,key=col.get)
+def mid(c):                          # central tendency
+  return c.mu if c.it is Num else max(c.has, key=c.has.get)
 
-def spread(col):
-  if symp(col):
-    N = sum(col.values()) or 1
-    return -sum(v/N*log2(v/N) for v in col.values() if v)
-  n = len(col)
-  if n < 2:  return 0
-  if n >= 20: return (col[int(.9*n)] - col[int(.1*n)]) / 2.56
-  return (col[-1] - col[0]) / (0.34 + 1.13*log(n))
+def spread(c):                       # sd (Num) | entropy bits (Sym)
+  if c.it is Num: return c.sd
+  N = sum(c.has.values()) or 1
+  return -sum(v/N*log2(v/N) for v in c.has.values() if v)
 
-# ## metrics ----------------------------------------------------
-def norm(lst, v):            
-  a, b = lst[0], lst[-1]
-  return v if v == "?" else (v - a) / (b - a + 1/BIG)
+# ## metrics ----------------------------------------------------
+def norm(c, v):                      # 0..1 logistic of z (~normal CDF)
+  if v == "?": return v
+  z = (v - c.mu) / (c.sd + 1/BIG)
+  return 1 / (1 + exp(-1.7 * max(-3, min(3, z))))
 
-def bin(col, v):                    # equal-freq bin id
-  if symp(col): return v
-  r = bisect.bisect_left(col, v)
-  return min(the.bins-1, r*the.bins // max(1,len(col)))
+def bin(c, v):
+  b = the.bins
+  return v if c.it is Sym else min(b - 1, int(b * norm(c, v)))
 
-def cutgo(col, v, cut):             # left-branch test
-  if v == "?":  return True
-  if symp(col): return v == cut
-  return v <= cut
+def cutgo(c, v, cut):                
+  return True if v=="?" else v==cut if c.it is Sym else v <= cut
 
-def disty(data, row):
+def disty(data, row):                # Chebyshev-ish dist to goals
   s, n, p = 0, 0, the.p
-  for at,lst in ok(data).cols.y.items():
-    n += 1
-    s += abs(norm(lst, row[at]) - data.cols.w[at])**p
+  for c in data.cols.y:
+    if c.it is Num:
+      n += 1; s += abs(norm(c, row[c.at]) - c.goal)**p
   return (s/n)**(1/p) if n else 0
 
-def m2(a):                    
-  if len(a) < 2: return 0
-  m = sum(a)/len(a)
-  return sum((x-m)**2 for x in a)
-
-def cuts(at, col, rows, yfun):      # yield (impurity, cut)
-  ys, hi = defaultdict(list), {}
+# ## tree (min child-variance cut) ------------------------------
+# bin rows per x-col into a Num of yfun(row), then sweep for the
+# min child-variance cut. total = merge(all bins); each split's
+# R = merge(total, L, -1) (subtractive un-merge); impurity =
+# L.m2 + R.m2. cut value = largest REAL x going left (hi[k]).
+def cuts(col, rows, yfun):           # yield (impurity, real cut value)
+  ys, hi = {}, {}
   for r in rows:
-    x = r[at]
-    if x == "?": continue
-    k = bin(col, x)
-    ys[k] += [yfun(r)]
-    if not symp(col): hi[k] = max(hi.get(k, x), x)
-  fn = splitList if nump(col) else splitDict
-  for k,yes,no in fn(sorted(ys),at,col):
-    return m2(yes)+m2(no), k
+    if (x := r[col.at]) != "?":
+      k = bin(col, x)
+      add(ys.setdefault(k, Num()), yfun(r))
+      if col.it is Num: hi[k] = max(hi.get(k, x), x)
+  yield from merges(sorted(ys), ys, hi, col)
 
-def mergeSym(ks,at,col)
-  for k in ks:
-    a = ys[k]
-    b = [y for j in ks if j != k for y in ys[j]]
-    if a and b: yield k,a,b
-
-def mergeNum(ks,at,col):
-  flat = [y for k in ks for y in ys[k]]
-  n = 0
-  for k in ks[:-1]:
-    n += len(ys[k])
-    L, R = flat[:n], flat[n:]
-    if L and R: yield L,R, hi[k]
+def merges(ks, ys, hi, col):
+  if not ks: return
+  total = reduce(merge, (ys[k] for k in ks))
+  if col.it is Sym:               
+    for k in ks:
+      R = merge(total, ys[k], -1)
+      if ys[k].n and R.n: yield ys[k].m2 + R.m2, k
+  else:                             
+    L = Num()
+    for k in ks[:-1]:
+      L = merge(L, ys[k])
+      R = merge(total, L, -1)
+      if L.n and R.n: yield L.m2 + R.m2, hi[k]
 
 def tree(root, stop=None, yfun=None):
-  ok(root)
-  yfun = yfun or (lambda r: r[root.cols.klass])
+  yfun = yfun or (lambda r: r[root.cols.klass.at])
   stop = stop or the.stop or len(root.rows)**.5
   def grow(rows):
-    if len(rows) <= stop: return clone(root, rows)
-    best, bat, bv = BIG, None, None
-    for at, col in root.cols.x.items():
-      for imp, v in cuts(at, col, rows, yfun):
-        if imp < best: best, bat, bv = imp, at, v
-    if bat is None: return clone(root, rows)
-    bcol, yes, no = root.cols.x[bat], [], []
-    for r in rows:
-      (yes if cutgo(bcol, r[bat], bv) else no).append(r)
-    if not (yes and no): return clone(root, rows)
-    return o(it=tree, at=bat, cut=bv,
-             left=grow(yes), right=grow(no))
-
+    if len(rows) > stop:
+      best, bcol, bv = BIG, None, None
+      for col in root.cols.x:        # greedy best cut over all x-cols
+        for imp, v in cuts(col, rows, yfun):
+          if imp < best: best, bcol, bv = imp, col, v
+      if bcol is not None:
+        yes, no = [], []
+        for r in rows:
+          (yes if cutgo(bcol, r[bcol.at], bv) else no).append(r)
+        if yes and no:
+          return o(it=Tree, at=bcol.at, cut=bv,
+                   left=grow(yes), right=grow(no))
+    return clone(root, rows)         # one leaf path
   return grow(root.rows)
+
+def leaves(t):                       # yield the leaf Datas
+  if t.it is Data: yield t
+  else: yield from leaves(t.left); yield from leaves(t.right)
+
+def treeLeaf(root, t, row):          # route a row to its leaf
+  while t.it is Tree:
+    c = root.cols.all[t.at]
+    t = t.left if cutgo(c, row[t.at], t.cut) else t.right
+  return t
+
+def treeShow(root, t):               # -> matrix of str (use cells())
+  ys   = [c for c in root.cols.y if c.it is Num]
+  rows = lambda t: t.rows if t.it is Data else \
+                   rows(t.left) + rows(t.right)
+  ymid = lambda t: sum(disty(root, r) for r in rows(t)) \
+                   / max(1, len(rows(t)))
+  out  = [["ygoal", *[c.txt for c in ys], "n", "tree"]]
+  def walk(t, lvl, label):
+    rs = rows(t); d = clone(root, rs)
+    out.append(["%.2f" % ymid(t),
+                *["%.1f" % d.cols.all[c.at].mu for c in ys],
+                str(len(rs)),
+                "|  "*(lvl-1) + label])
+    if t.it is Tree:
+      c  = root.cols.all[t.at]
+      op = ("<=", ">") if c.it is Num else ("==", "!=")
+      for kid, o in sorted([(t.left, op[0]), (t.right, op[1])],
+                           key=lambda k: ymid(k[0])):
+        walk(kid, lvl+1, "%s %s %s" % (c.txt, o, t.cut))
+  walk(t, 0, "")
+  return out
 
 # ## confusion (pd, pf, ... from (want,got) pairs) --------------
 def confused(pairs):            # pairs = [(want, got), ...]
@@ -181,7 +216,22 @@ def confused(pairs):            # pairs = [(want, got), ...]
                f1=2*prec*pd/(prec+pd+1e-32))
   return out
 
-# ## lib -------------------------------------------------------
+# ## lib -------------------------------------------------------
+def numeric(s):
+  try: float(s); return True
+  except: return False
+
+def cells(rows, sep="  "):      # align: numeric cols rjust, else ljust
+  rows = [[str(x) for x in r] for r in rows]
+  n  = max(len(r) for r in rows)
+  ws = [max((len(r[c]) for r in rows if c < len(r)), default=0)
+        for c in range(n)]
+  num = [all(numeric(r[c]) for r in rows[1:] if c < len(r))
+         for c in range(n)]     # right-justify only all-numeric cols
+  for r in rows:
+    print(sep.join((r[c].rjust(ws[c]) if num[c] else r[c].ljust(ws[c]))
+                   for c in range(len(r))).rstrip())
+
 class o(dict):
   __getattr__ = dict.get;__setattr__ = dict.__setitem__;
   def __repr__(i):
@@ -231,38 +281,26 @@ def test_the():                 # show the config
 def test_stats():               # mid/spread per col of -f
   head, *body = csv(the.file)
   d = Data([head] + body)
-  print("%-14s %5s %10s %10s" % ("col","n","mid","spread"))
-  for at, c in d.cols.all.items():
-    n = len(c) if nump(c) else sum(c.values())
-    print("%-14s %5d %10s %10.3f" %
-          (d.cols.names[at], n, str(mid(c)), spread(c)))
+  out = [["col", "n", "mid", "spread"]]
+  for c in d.cols.all:
+    m = round(mid(c), the.Round) if c.it is Num else mid(c)
+    out += [[c.txt, c.n, m, round(spread(c), the.Round)]]
+  cells(out)
+
+def test_confused():            # confusion stats from toy (want,got)
+  pairs = ([("y","y")]*8 + [("y","n")]*2 +
+           [("n","n")]*7 + [("n","y")]*3)
+  out = [["label","tp","fp","fn","tn","pd","pf","prec","acc","f1"]]
+  for k, m in confused(pairs).items():
+    out += [[k, m.tp, m.fp, m.fn, m.tn] +
+            [round(m[x], 2) for x in ("pd","pf","prec","acc","f1")]]
+  cells(out)
 
 def test_tree():                # tree on N rows of -f
   head, *body = csv(the.file)
   rows = sample(body, min(the.N, len(body)))
   d = Data([head] + rows)
-  treeShow(d, tree(d))
-
-def test_fmtree():              # 30 fmtrees, runtime + worth dist
-  import time
-  head, *body = csv(the.file)
-  rows = sample(body, min(the.N, len(body)))
-  d    = Data([head] + rows)
-  t0   = time.time()
-  trees = [fmtree(d) for _ in range(30)]
-  dt   = time.time() - t0
-  ws   = sorted(t.worth for t in trees)
-  best = min(trees, key=lambda t: t.worth)
-  nLeaves = sum(1 for _ in fmleaves(best))
-  print("# 30 fmtrees on %s (N=%d)" % (the.file.split("/")[-1], len(rows)))
-  print("time         %.3fs  (%.1f ms/tree)" % (dt, 1000*dt/30))
-  print("worth min    %.4f" % ws[0])
-  print("worth med    %.4f" % ws[15])
-  print("worth max    %.4f" % ws[-1])
-  print("picked tree: worth=%.4f, %d leaves, stop=%d" %
-        (best.worth, nLeaves, int(len(rows)**.5)))
-  print("# all worths sorted:")
-  for w in ws: print("  %.4f" % w)
+  cells(treeShow(d, tree(d)))
 
 # ## main -------------------------------------------------------
 the = settings(__doc__)
