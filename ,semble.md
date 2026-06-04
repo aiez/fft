@@ -8,7 +8,7 @@ Assemble models by trying many inductive biases.
 git clone http://tiny.cc/semble     # code
 git clone http://tiny.cc/optimiz    # data
 cd semble
-python3 -B semble.py -f ../optimize/auto93.csv --tree
+python3 -B semble.py -f ../optimiz/auto93.csv --tree
 ```
 
 Should print a small decision tree.

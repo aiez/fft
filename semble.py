@@ -13,7 +13,7 @@ so no lo/hi to track and outliers are squashed, not stretched.
 
 Options:
  -b --bins  numeric bins      bins=7
- -B --Budget train labels     Budget=20
+ -B --Budget train labels     Budget=50
  -C --Check  test labels      Check=5
  -s --seed  random seed       seed=1234567891
  -p --p     distance exponent p=2
@@ -28,7 +28,8 @@ import sys, re
 from math import inf, log2, exp
 from random import sample, seed
 
-BIG = inf
+BIG  = inf
+TINY = 1e-30
 
 # ## constructors -----------------------------------------------
 def Num(txt="", at=0):
@@ -102,7 +103,7 @@ def spread(c):                       # sd (Num) | entropy bits (Sym)
 # ## metrics ----------------------------------------------------
 def norm(c, v):                      # 0..1 logistic of z (~normal CDF)
   if v == "?": return v
-  z = (v - c.mu) / (c.sd + 1/BIG)
+  z = (v - c.mu) / (c.sd + TINY)
   return 1 / (1 + exp(-1.7 * max(-3, min(3, z))))
 
 def bin(c, v):
@@ -136,6 +137,7 @@ def cuts(col, rows, yfun):           # yield (impurity, real cut value)
   yield from cutsBinary(sorted(ys), ys, hi, total, col)
 
 def cutsBinary(ks, ys, hi, total, col):
+  if not ks: return None
   if col.it is Sym:
     for k in ks:
       R = merge(total, ys[k], -1)
@@ -177,13 +179,15 @@ def treeLeaf(root, t, row):          # route a row to its leaf
   return t
 
 def treeShow(root, t):               # -> matrix of str (use print2d())
-  ys   = [c for c in root.cols.y if c.it is Num]
-  rows = lambda t: t.rows if t.it is Data else rows(t.left)+rows(t.right)
-  ymid = lambda rs: sum(disty(root, r) for r in rs)/max(1, len(rs))
-  out  = [["", "ygoal", *[c.txt for c in ys], "n", "tree"]]
+  ys     = [c for c in root.cols.y if c.it is Num]
+  rows   = lambda t: t.rows if t.it is Data else rows(t.left)+rows(t.right)
+  win    = wins(root)
+  wmid   = lambda rs: sum(win(r) for r in rs)/max(1, len(rs))
+  out    = [["", "win", *[c.txt for c in ys], "n", "tree"]]
+  leaves = []
   def walk(t, lvl, label):
     rs = rows(t); d = clone(root, rs)
-    out.append(["", "%.2f" % ymid(rs),
+    out.append(["", "%d" % round(100 * wmid(rs)),
                 *["%.1f" % d.cols.all[c.at].mu for c in ys],
                 str(len(rs)), "|  "*(lvl-1) + label])
     if t.it is Tree:
@@ -191,9 +195,13 @@ def treeShow(root, t):               # -> matrix of str (use print2d())
       op = ("<=", ">") if c.it is Num else ("==", "!=")
       walk(t.left,  lvl+1, "%s %s %s" % (c.txt, op[0], t.cut))
       walk(t.right, lvl+1, "%s %s %s" % (c.txt, op[1], t.cut))
+    else:
+      leaves.append(len(out)-1)
   walk(t, 0, "")
-  best = min(range(1, len(out)), key=lambda i: float(out[i][1]))
-  out[best][0] = "*"                 # mark lowest-ygoal row
+  best  = max(leaves, key=lambda i: float(out[i][1]))
+  worst = min(leaves, key=lambda i: float(out[i][1]))
+  out[best][0]  = "+"
+  out[worst][0] = "-"
   return out
 
 # ## acquire (active-learning eval) -----------------------------
@@ -205,7 +213,7 @@ def treeShow(root, t):               # -> matrix of str (use print2d())
 def wins(data):                  # row -> 0..1 (1 = optimum, 0 = mean)
   ys = sorted(disty(data, r) for r in data.rows)
   lo, mu = ys[0], sum(ys)/len(ys)
-  return lambda row: 1 - (disty(data, row) - lo)/(mu - lo + 1/BIG)
+  return lambda row: 1 - (disty(data, row) - lo)/(mu - lo + TINY)
 
 def generalized(data, select=None):
   rows = sample(data.rows, len(data.rows))      # shuffle
