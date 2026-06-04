@@ -13,20 +13,21 @@ so no lo/hi to track and outliers are squashed, not stretched.
 
 Options:
  -b --bins  numeric bins      bins=7
+ -B --Budget train labels     Budget=20
+ -C --Check  test labels      Check=5
  -s --seed  random seed       seed=1234567891
  -p --p     distance exponent p=2
  -R --Round repr decimals     Round=2
  -S --stop  leaf size         stop=None
- -n --N     demo row sample   N=50
  -f --file  data file
             file=/Users/timm/gits/moot/optimize/misc/auto93.csv
 
-eg: python3 ample.py -f FILE -n 50 --tree
+eg: python3 ample.py -f FILE -B 50 --tree
 """
 import sys, re
 from math import inf, log2, exp
 from random import sample, seed
-from functools import reduce
+
 BIG = inf
 
 # ## constructors -----------------------------------------------
@@ -69,7 +70,7 @@ def add(i, v):
       i.sd  = 0 if i.n < 2 else (i.m2/(i.n-1))**.5
   return v
 
-def adds(src, i):
+def adds(src, i=None):
   i = i or Num()
   for row in src: add(i, row)
   return i
@@ -124,18 +125,18 @@ def disty(data, row):                # Chebyshev-ish dist to goals
 # R = merge(total, L, -1) (subtractive un-merge); impurity =
 # L.m2 + R.m2. cut value = largest REAL x going left (hi[k]).
 def cuts(col, rows, yfun):           # yield (impurity, real cut value)
-  ys, hi = {}, {}
+  ys, hi, total = {}, {}, Num()
   for r in rows:
     if (x := r[col.at]) != "?":
+      y = add(total, yfun(r))           
       k = bin(col, x)
-      add(ys.setdefault(k, Num()), yfun(r))
+      b = ys[k] = ys.get(k) or Num()
+      add(b, y)
       if col.it is Num: hi[k] = max(hi.get(k, x), x)
-  yield from merges(sorted(ys), ys, hi, col)
+  yield from cutsBinary(sorted(ys), ys, hi, total, col)
 
-def merges(ks, ys, hi, col):
-  if not ks: return
-  total = reduce(merge, (ys[k] for k in ks))
-  if col.it is Sym:               
+def cutsBinary(ks, ys, hi, total, col):
+  if col.it is Sym:
     for k in ks:
       R = merge(total, ys[k], -1)
       if ys[k].n and R.n: yield ys[k].m2 + R.m2, k
@@ -175,27 +176,49 @@ def treeLeaf(root, t, row):          # route a row to its leaf
     t = t.left if cutgo(c, row[t.at], t.cut) else t.right
   return t
 
-def treeShow(root, t):               # -> matrix of str (use cells())
+def treeShow(root, t):               # -> matrix of str (use print2d())
   ys   = [c for c in root.cols.y if c.it is Num]
-  rows = lambda t: t.rows if t.it is Data else \
-                   rows(t.left) + rows(t.right)
-  ymid = lambda t: sum(disty(root, r) for r in rows(t)) \
-                   / max(1, len(rows(t)))
-  out  = [["ygoal", *[c.txt for c in ys], "n", "tree"]]
+  rows = lambda t: t.rows if t.it is Data else rows(t.left)+rows(t.right)
+  ymid = lambda rs: sum(disty(root, r) for r in rs)/max(1, len(rs))
+  out  = [["", "ygoal", *[c.txt for c in ys], "n", "tree"]]
   def walk(t, lvl, label):
     rs = rows(t); d = clone(root, rs)
-    out.append(["%.2f" % ymid(t),
+    out.append(["", "%.2f" % ymid(rs),
                 *["%.1f" % d.cols.all[c.at].mu for c in ys],
-                str(len(rs)),
-                "|  "*(lvl-1) + label])
+                str(len(rs)), "|  "*(lvl-1) + label])
     if t.it is Tree:
       c  = root.cols.all[t.at]
       op = ("<=", ">") if c.it is Num else ("==", "!=")
-      for kid, o in sorted([(t.left, op[0]), (t.right, op[1])],
-                           key=lambda k: ymid(k[0])):
-        walk(kid, lvl+1, "%s %s %s" % (c.txt, o, t.cut))
+      walk(t.left,  lvl+1, "%s %s %s" % (c.txt, op[0], t.cut))
+      walk(t.right, lvl+1, "%s %s %s" % (c.txt, op[1], t.cut))
   walk(t, 0, "")
+  best = min(range(1, len(out)), key=lambda i: float(out[i][1]))
+  out[best][0] = "*"                 # mark lowest-ygoal row
   return out
+
+# ## acquire (active-learning eval) -----------------------------
+# split half/half; `select` picks Budget rows of train to label
+# (default: random); grow a disty-tree on them; sort test by the
+# leaf disty its rows route to; label the top Check; the best of
+# those = `found`. WIN = how far found beats the mean toward best:
+# 100 = hit the optimum, 0 = no better than average.
+def wins(data):                  # row -> 0..1 (1 = optimum, 0 = mean)
+  ys = sorted(disty(data, r) for r in data.rows)
+  lo, mu = ys[0], sum(ys)/len(ys)
+  return lambda row: 1 - (disty(data, row) - lo)/(mu - lo + 1/BIG)
+
+def generalized(data, select=None):
+  rows = sample(data.rows, len(data.rows))      # shuffle
+  win  = wins(data)                              # scorer (lo/mu from data)
+  select = select or (lambda rs: sample(rs, min(the.Budget, len(rs))))
+  half = len(rows)//2
+  train, test = rows[:half], rows[half:]
+  root = clone(data, select(train))             # labeled budget
+  t    = tree(root, yfun=lambda r: disty(data, r))
+  for lf in leaves(t):                           # cache leaf disty-mean
+    lf._mu = sum(disty(data, r) for r in lf.rows)/max(1, len(lf.rows))
+  test.sort(key=lambda r: treeLeaf(root, t, r)._mu)
+  return int(100 * max(win(r) for r in test[:the.Check]))
 
 # ## confusion (pd, pf, ... from (want,got) pairs) --------------
 def confused(pairs):            # pairs = [(want, got), ...]
@@ -217,20 +240,12 @@ def confused(pairs):            # pairs = [(want, got), ...]
   return out
 
 # ## lib -------------------------------------------------------
-def numeric(s):
-  try: float(s); return True
-  except: return False
-
-def cells(rows, sep="  "):      # align: numeric cols rjust, else ljust
+def print2d(rows, sep="  "):      # rjust all but the last col (left, raw)
   rows = [[str(x) for x in r] for r in rows]
-  n  = max(len(r) for r in rows)
-  ws = [max((len(r[c]) for r in rows if c < len(r)), default=0)
-        for c in range(n)]
-  num = [all(numeric(r[c]) for r in rows[1:] if c < len(r))
-         for c in range(n)]     # right-justify only all-numeric cols
+  ws = [max(len(r[c]) for r in rows if c < len(r))
+        for c in range(max(len(r) for r in rows))]
   for r in rows:
-    print(sep.join((r[c].rjust(ws[c]) if num[c] else r[c].ljust(ws[c]))
-                   for c in range(len(r))).rstrip())
+    print(sep.join([r[c].rjust(ws[c]) for c in range(len(r)-1)] + [r[-1]]))
 
 class o(dict):
   __getattr__ = dict.get;__setattr__ = dict.__setitem__;
@@ -285,7 +300,7 @@ def test_stats():               # mid/spread per col of -f
   for c in d.cols.all:
     m = round(mid(c), the.Round) if c.it is Num else mid(c)
     out += [[c.txt, c.n, m, round(spread(c), the.Round)]]
-  cells(out)
+  print2d(out)
 
 def test_confused():            # confusion stats from toy (want,got)
   pairs = ([("y","y")]*8 + [("y","n")]*2 +
@@ -294,15 +309,21 @@ def test_confused():            # confusion stats from toy (want,got)
   for k, m in confused(pairs).items():
     out += [[k, m.tp, m.fp, m.fn, m.tn] +
             [round(m[x], 2) for x in ("pd","pf","prec","acc","f1")]]
-  cells(out)
+  print2d(out)
+
+def test_general():             # mean WIN over 20 generalized runs
+  d  = Data(csv(the.file))
+  ws = adds((generalized(d) for _ in range(20)))
+  print(round(ws.mu), len(d.rows), len(d.cols.x), len(d.cols.y),
+        the.Budget, the.Check, the.file.split("/")[-1])
 
 def test_tree():                # tree on N rows of -f
   head, *body = csv(the.file)
-  for _ in range(1000):
-    rows = sample(body, min(the.N, len(body)))
+  for _ in range(100):
+    rows = sample(body, min(the.Budget, len(body)))
     d = Data([head] + rows)
     t = tree(d)
-  cells(treeShow(d,t))
+  print2d(treeShow(d,t))
 
 # ## main -------------------------------------------------------
 the = settings(__doc__)
