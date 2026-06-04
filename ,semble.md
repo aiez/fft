@@ -1,16 +1,19 @@
 <!-- Copyright (c) 2026 Tim Menzies, MIT License https://opensource.org/licenses/MIT -->
-<a href="http://tiny.cc/semble"><img align=right alt="image" src="https://gist.github.com/user-attachments/assets/74c3a68c-1745-4020-92ee-c456133ab287" /></a>
+<p align="right">
+<img src="https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white" alt="Purpose">
+<a href="https://choosealicense.com/licenses/mit/"><img src="https://img.shields.io/badge/License-MIT-32cd32?logo=open-source-initiative&logoColor=white" alt="License"></a>
+<img src="https://img.shields.io/badge/Language-Python-000080?logo=python&logoColor=white" alt="Language">
+<a href="https://timm.fyi"><img src="https://img.shields.io/badge/Author-timm-dc143c?logo=readme&logoColor=white" alt="Author"></a>
+</p>
 
-### Semble
+### [http://tiny.cc/semble](http://tiny.cc/semble)
 Regression trees by greedy min-variance cuts on incremental column stats (Welford μ/σ). ~340 lines, pure Python, no deps. Data is CSV; column-name suffix tags type and goal.
 
-    git clone http://tiny.cc/semble && git clone http://tiny.cc/optimiz
-    cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
-
-![Purpose](https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white)
-[![License](https://img.shields.io/badge/License-MIT-32cd32?logo=open-source-initiative&logoColor=white)](https://choosealicense.com/licenses/mit/)
-![Language](https://img.shields.io/badge/Language-Python-000080?logo=python&logoColor=white)
-[![Author](https://img.shields.io/badge/Author-timm-dc143c?logo=readme&logoColor=white)](https://timm.fyi)
+```bash
+# install and test
+git clone http://tiny.cc/semble && git clone http://tiny.cc/optimiz
+cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
+```
 
 ## NAME
 **semble** — assemble models by trying many inductive biases.
