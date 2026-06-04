@@ -29,9 +29,7 @@ eg: python3 fft1.py -f FILE -n 50 --tree
 import sys, re
 from math import inf, log, log2, sqrt
 from random import random, randrange, choice, sample, seed
-from collections import defaultdict
 BIG = inf
-
 # ## constructors -----------------------------------------------
 def symp(col) : return type(col) is dict
 def nump(col) : return type(col) is list
@@ -60,12 +58,12 @@ def add(data, row):
   for at, col in data.cols.all.items():
     if (x := row[at]) != "?":
       if symp(col): col[x] = col.get(x, 0) + 1  
-      else some(col, x, len(data.rows))
+      else keep(col, x, len(data.rows))
   return row
 
-def some(lst, v, n):
+def keep(lst, v, n):
   if len(lst) < the.Some: lst += [v]
-  elif random() < the.Some/n: lst[randrange(the.Some)] = v
+  elif random() < the.Some/n: lst(randrange(the.Some)] = v
   return lst
 
 def ok(data):                  
@@ -127,18 +125,11 @@ def m2(a):
    def cuts(at, col, rows):
      xys = sorted((r[at],n,Y(r)) 
                   for n,r in enumerate(rows) if r[at]!="?")
-     d = defaultdict(lambda: defaultdict(lambda: o(x=[], y=[])))
      for x,n,y in rows:
        b = bin(col,x)
-       some(h[at][b].x, x, n)
-       some(h[at][b].y, y, n)
-     for at,bs in h.items():
-       if symp(col): 
-         bs.x=set(bs.x)
-       0] = (xs,ys) = h.get(k) or {at:([],[])}
-       some(xs, x, n); some(ys, y, n)
-
-       +=[x]
+       k = (at,k)
+       h[k] = (xs,ys) = k.get(k) or ([],[])
+       xs +=[x]
             =(at,b)
         cell = hist.setdefault(k, [[], x])
         cell[0] += [yfun(r)]
