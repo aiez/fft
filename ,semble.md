@@ -11,7 +11,8 @@ cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 ```
 
 ## NAME
-**semble** — assemble models by trying many inductive biases.
+
+    semble - assemble models by trying many inductive biases
 
 ## SYNOPSIS
 
@@ -19,61 +20,70 @@ cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 
 ## OPTIONS
 
-| flag         | meaning                  | default       |
-|--------------|--------------------------|---------------|
-| -b --bins    | numeric bin count        | 7             |
-| -B --Budget  | train-row labels         | 50            |
-| -C --Check   | test-row labels          | 5             |
-| -s --seed    | random seed              | 1234567891    |
-| -p --p       | distance exponent        | 2             |
-| -R --Round   | display decimals         | 2             |
-| -S --stop    | min leaf size            | sqrt(N rows)  |
-| -f --file    | data file                | auto93.csv    |
+    -b --bins     numeric bin count        (7)
+    -B --Budget   train-row labels         (50)
+    -C --Check    test-row labels          (5)
+    -s --seed     random seed              (1234567891)
+    -p --p        distance exponent        (2)
+    -R --Round    display decimals         (2)
+    -S --stop     min leaf size            (sqrt N rows)
+    -f --file     data file                (auto93.csv)
 
 ## DATA
-CSV with header row. Each column name encodes type + role via its first char and last char:
 
-| suffix | meaning                         |
-|--------|---------------------------------|
-| `+`    | numeric goal, maximize          |
-| `-`    | numeric goal, minimize          |
-| `!`    | symbolic goal (klass)           |
-| `X`    | ignore                          |
-| (none) | predictor                       |
+    CSV with header row. Each column name encodes type + role
+    via first char (case) and last char (suffix):
 
-Names starting with an uppercase letter are numeric (`Num`), else symbolic (`Sym`). Example header:
+      first char UPPER  -> numeric (Num)
+      first char lower  -> symbolic (Sym)
+      suffix '+'        -> numeric goal, maximize
+      suffix '-'        -> numeric goal, minimize
+      suffix '!'        -> symbolic goal (klass)
+      suffix 'X'        -> ignore
+      else              -> predictor
 
-    Clndrs,Volume,HpX,Model,origin,Lbs-,Acc+,Mpg+
+    Missing values: '?'. Example header:
 
-Missing values: `?`.
+      Clndrs,Volume,HpX,Model,origin,Lbs-,Acc+,Mpg+
 
 ## TESTS
-Each `--name` calls `test_name()` (re-seeded). To list them: read funcs under `## egs` in source.
 
-| flag         | what                                                |
-|--------------|-----------------------------------------------------|
-| --the        | print current config                                |
-| --stats      | mid + spread per column of `-f`                     |
-| --confused   | pd/pf/prec/acc/f1 over toy (want,got) pairs         |
-| --tree       | regression tree on Budget rows of `-f`              |
-| --general    | mean WIN over 20 active-learning runs               |
+    Each --name calls test_name() (re-seeded). Listed under
+    `## egs` in source.
+
+      --the       print current config
+      --stats     mid + spread per column of -f
+      --confused  pd/pf/prec/acc/f1 over toy (want,got) pairs
+      --tree      regression tree on Budget rows of -f
+      --general   mean WIN over 20 active-learning runs
 
 ## TREE OUTPUT
-Columns: `mark  win  GOAL±...  n  tree`.
-- `win` is 0..100. 100 = hit optimum, 0 = no better than mean (negative = worse).
-- `+` marks best leaf, `-` marks worst leaf.
 
-    python3 -B semble.py -f ../optimiz/SS-N.csv --tree
+    Columns:  mark  win  GOAL±...  n  tree
+
+      win    0..100. 100 = optimum, 0 = mean, neg = worse.
+      +      best leaf
+      -      worst leaf
+
+    Example:
+
+      python3 -B semble.py -f ../optimiz/SS-N.csv --tree
 
 ## EXIT
-0 on success. `bad flag: ...` and usage on unknown flag.
+
+    0  success
+    1  bad flag (usage printed)
 
 ## SEE ALSO
-- `http://tiny.cc/optimiz` — example CSVs (auto93, SS-N, ...)
-- `http://tiny.cc/konfig` — shared Makefile, bashrc, nvim, tmux
+
+    http://tiny.cc/optimiz  example CSVs (auto93, SS-N, ...)
+    http://tiny.cc/konfig   shared Makefile, bashrc, nvim, tmux
 
 ## LICENSE
-[MIT](https://choosealicense.com/licenses/mit/) © 2025 Tim Menzies.
+
+    MIT.  https://choosealicense.com/licenses/mit/
+    (c) 2025 Tim Menzies.
 
 ## AUTHOR
-Tim Menzies <timm@ieee.org>.
+
+    Tim Menzies <timm@ieee.org>
