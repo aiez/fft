@@ -17,6 +17,19 @@ cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 
     python3 -B semble.py [-flag VAL]... --TEST
 
+## OPTIONS
+
+| flag         | meaning                  | default       |
+|--------------|--------------------------|---------------|
+| -b --bins    | numeric bin count        | 7             |
+| -B --Budget  | train-row labels         | 50            |
+| -C --Check   | test-row labels          | 5             |
+| -s --seed    | random seed              | 1234567891    |
+| -p --p       | distance exponent        | 2             |
+| -R --Round   | display decimals         | 2             |
+| -S --stop    | min leaf size            | sqrt(N rows)  |
+| -f --file    | data file                | auto93.csv    |
+
 ## DATA
 CSV with header row. Each column name encodes type + role via its first char and last char:
 
@@ -33,19 +46,6 @@ Names starting with an uppercase letter are numeric (`Num`), else symbolic (`Sym
     Clndrs,Volume,HpX,Model,origin,Lbs-,Acc+,Mpg+
 
 Missing values: `?`.
-
-## OPTIONS
-
-| flag         | meaning                  | default       |
-|--------------|--------------------------|---------------|
-| -b --bins    | numeric bin count        | 7             |
-| -B --Budget  | train-row labels         | 50            |
-| -C --Check   | test-row labels          | 5             |
-| -s --seed    | random seed              | 1234567891    |
-| -p --p       | distance exponent        | 2             |
-| -R --Round   | display decimals         | 2             |
-| -S --stop    | min leaf size            | sqrt(N rows)  |
-| -f --file    | data file                | auto93.csv    |
 
 ## TESTS
 Each `--name` calls `test_name()` (re-seeded). To list them: read funcs under `## egs` in source.
