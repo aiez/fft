@@ -6,7 +6,7 @@ Regression trees by greedy min-variance cuts on incremental column stats (Welfor
 
 ```bash
 # install and test
-git clone http://tiny.cc/semble && git clone http://tiny.cc/optimiz
+git clone http://tiny.cc/optimiz && git clone http://tiny.cc/semble
 cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 ```
 
