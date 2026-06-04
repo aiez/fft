@@ -19,6 +19,7 @@ Options:
  -p --p     distance exponent p=2
  -R --Round repr decimals     Round=2
  -S --stop  leaf size         stop=None
+ -P --pos   positive klass label (auto: minority) pos=auto
  -f --file  data file
             file=/Users/timm/gits/moot/optimize/misc/auto93.csv
 
@@ -44,14 +45,15 @@ def Data(src):
   return adds(src, o(it=Data, cols=Cols(next(src)), rows=[]))
 
 def Cols(names):
-  all, x, y, klass = [], [], [], None
+  all, x, y, klass, protected = [], [], [], None, []
   for at, s in enumerate(names):
     all += [col := (Num if s[0].isupper() else Sym)(s,at)]
-    z = s[-1]
+    z = s.rstrip("~")[-1:]              # peel '~' so suffix detection still works
     if   z in "-+!" : y += [col]
     elif z != "X"   : x += [col]
     if z == "!"     : klass = col
-  return o(all=all, names=names, x=x, y=y,
+    if s.endswith("~"): protected += [col]
+  return o(all=all, names=names, x=x, y=y, protected=protected,
            klass=klass or (y[0] if y else None))
 
 def Tree(): pass                     # interior tag (leaf = Data)
@@ -247,6 +249,47 @@ def confused(pairs):            # pairs = [(want, got), ...]
                f1=2*prec*pd/(prec+pd+1e-32))
   return out
 
+# ## fairness (group gaps from confused() output) --------------
+# a, b = confused(pairs) of two protected groups; pos = positive label.
+# All return 0 at perfect parity; higher = more unfair.
+def rate(m):                      # acceptance rate: P(Ŷ=m.label) in group
+  return (m.tp + m.fp) / (m.tp + m.fp + m.fn + m.tn + 1e-32)
+
+def spd(a, b, pos):               # statistical parity diff: ΔP(Ŷ=pos)
+  return abs(rate(a[pos]) - rate(b[pos]))
+
+def ard(a, b, pos):               # accuracy rate diff: pooled-class acc gap
+  return abs(a[pos].acc - b[pos].acc)
+
+def aaod(a, b, pos):              # avg abs odds diff: ½(|ΔFPR| + |ΔTPR|)
+  return 0.5 * (abs(a[pos].pf - b[pos].pf) + abs(a[pos].pd - b[pos].pd))
+
+def groups(col, rows):            # top2 syms (Sym) or median split (Num)
+  if col.it is Sym:
+    g1, g2 = sorted(col.has, key=col.has.get, reverse=True)[:2]
+    return ([r for r in rows if r[col.at] == g1], g1,
+            [r for r in rows if r[col.at] == g2], g2)
+  med = col.mu
+  return ([r for r in rows if r[col.at] != "?" and r[col.at] <= med], "lo",
+          [r for r in rows if r[col.at] != "?" and r[col.at] >  med], "hi")
+
+def scoreFairness(root, t, rows, pos):   # -> {col.txt: o(g1,g2,spd,ard,aaod)}
+  klass = root.cols.klass
+  pred  = {}                                # row id -> predicted label
+  for leaf in leaves(t):
+    pk = mid(leaf.cols.klass)
+    for r in leaf.rows: pred[id(r)] = pk
+  out = {}
+  for col in root.cols.protected:
+    s1, g1, s2, g2 = groups(col, rows)
+    if not s1 or not s2: continue
+    a = confused([(r[klass.at], pred[id(r)]) for r in s1 if id(r) in pred])
+    b = confused([(r[klass.at], pred[id(r)]) for r in s2 if id(r) in pred])
+    if pos not in a or pos not in b: continue
+    out[col.txt] = o(g1=g1, g2=g2, n1=len(s1), n2=len(s2),
+                     spd=spd(a,b,pos), ard=ard(a,b,pos), aaod=aaod(a,b,pos))
+  return out
+
 # ## lib -------------------------------------------------------
 def print2d(rows, sep="  "):      # rjust all but the last col (left, raw)
   rows = [[str(x) for x in r] for r in rows]
@@ -318,6 +361,34 @@ def test_confused():            # confusion stats from toy (want,got)
   for k, m in confused(pairs).items():
     out += [[k, m.tp, m.fp, m.fn, m.tn] +
             [round(m[x], 2) for x in ("pd","pf","prec","acc","f1")]]
+  print2d(out)
+
+def _lookupPos(path):           # read labels.py next to the CSV (if any)
+  import importlib.util, os
+  lab = os.path.join(os.path.dirname(os.path.abspath(path)), "labels.py")
+  if not os.path.exists(lab): return None
+  spec = importlib.util.spec_from_file_location("labels", lab)
+  mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+  return getattr(mod, "POSITIVE", {}).get(os.path.basename(path))
+
+def test_fairness():            # SPD/ARD/AAOD per protected col of -f
+  d = Data(csv(the.file))
+  if not d.cols.protected:
+    print("no protected cols (need ~ suffix); see ../fairnez/protect.py")
+    return
+  pos = the.pos
+  if pos in (None, "", "auto"):
+    pos = _lookupPos(the.file)
+    if pos is None:
+      pos = min(d.cols.klass.has, key=d.cols.klass.has.get)
+  klass_at = d.cols.klass.at
+  yfun = lambda r: 1.0 if r[klass_at] == pos else 0.0     # numeric encoding
+  t = tree(d, yfun=yfun)
+  out = [["protected", "g1", "n1", "g2", "n2", "SPD", "ARD", "AAOD"]]
+  for txt, m in scoreFairness(d, t, d.rows, pos).items():
+    out += [[txt, m.g1, m.n1, m.g2, m.n2,
+             round(m.spd, 3), round(m.ard, 3), round(m.aaod, 3)]]
+  print(the.file.split("/")[-1], "  positive label =", pos)
   print2d(out)
 
 def test_general():             # mean WIN over 20 generalized runs
