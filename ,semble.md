@@ -1,6 +1,5 @@
 <!-- Copyright (c) 2026 Tim Menzies, MIT License https://opensource.org/licenses/MIT -->
-<img align=right alt="image" src="https://gist.github.com/user-attachments/assets/d5b1b4a8-4142-4b20-8e12-e135070f28d9" />
-
+<a href="http://tiny.cc/semble"><img align=right  alt="image" src="https://gist.github.com/user-attachments/assets/74c3a68c-1745-4020-92ee-c456133ab287" /></a>
 
 ### Semple
 Assemble models by trying many inductive biases.
