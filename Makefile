@@ -2,8 +2,8 @@
 # knobs  only; all targets live in $(KONFIG)/Makefile
 KONFIG ?= ../konfig
 
-APP   := ample
-MAIN  := ample.py
+APP   := semble
+MAIN  := semble.py
 EXT   := py
 LANG  := python
 LINT  := ruff check *.py

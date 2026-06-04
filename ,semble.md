@@ -2,10 +2,10 @@
 <img align=right alt="image" src="https://gist.github.com/user-attachments/assets/d5b1b4a8-4142-4b20-8e12-e135070f28d9" />
 
 
-### Ample
-Sample multiple models via different inductive biases.
+### Semple
+Assemble models by trying many inductive biases.
 
-http://tiny.cc/ample
+http://tiny.cc/semble
 
 
 ![Purpose](https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white)

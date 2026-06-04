@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 -B
 """
-ample.py, regression tree over incremental column stats (library)
+semble.py, regression tree over incremental column stats (library)
 (c) 2025, Tim Menzies <timm@ieee.org>, MIT license
 
 Generic services: Data, disty, tree (min-variance cut), treeShow
