@@ -209,7 +209,7 @@ def wins(data):                  # row -> 0..1 (1 = optimum, 0 = mean)
 
 def generalized(data, select=None):
   rows = sample(data.rows, len(data.rows))      # shuffle
-  win  = wins(data)                              # scorer (lo/mu from data)
+  win  = wins(data)                            
   select = select or (lambda rs: sample(rs, min(the.Budget, len(rs))))
   half = len(rows)//2
   train, test = rows[:half], rows[half:]
@@ -245,7 +245,8 @@ def print2d(rows, sep="  "):      # rjust all but the last col (left, raw)
   ws = [max(len(r[c]) for r in rows if c < len(r))
         for c in range(max(len(r) for r in rows))]
   for r in rows:
-    print(sep.join([r[c].rjust(ws[c]) for c in range(len(r)-1)] + [r[-1]]))
+    print(sep.join([r[c].rjust(ws[c]) 
+                    for c in range(len(r)-1)] + [r[-1]]))
 
 class o(dict):
   __getattr__ = dict.get;__setattr__ = dict.__setitem__;
