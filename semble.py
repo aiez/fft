@@ -19,10 +19,12 @@ Options:
  -p --p     distance exponent p=2
  -R --Round repr decimals     Round=2
  -S --stop  leaf size         stop=None
- -t --trees forest size       trees=100
+ -t --trees forest size       trees=1000
  -m --mtry  cols per split     mtry=auto
  -r --rows  resample mode      rows=boot
+ -z --Some  rows per tree      Some=200
  -T --Train train fraction     Train=0.8
+ -n --repeats repeat splits    repeats=20
  -P --pos   positive klass label (auto: minority) pos=auto
  -f --file  data file
             file=/Users/timm/gits/moot/optimize/misc/auto93.csv
@@ -191,14 +193,15 @@ def treeLeaf(root, t, row):          # route a row to its leaf
 # all) grown over a random mtry-col subspace per split. predict =
 # majority klass vote across trees. diversity from rows+cols only;
 # each tree still takes the GREEDY best cut for its candidate cols.
-def resample(rows, klass, mode):     # row diversity per tree
-  if mode == "boot": return [choice(rows) for _ in rows]    # bootstrap
-  if mode == "bal":                  # balanced: undersample to min class
+def resample(rows, klass, mode, cap):  # <=cap rows per tree (row diversity)
+  if mode == "bal":                  # balanced: equal draw per class
     by = {}
     for r in rows: by.setdefault(r[klass.at], []).append(r)
-    m = min(len(v) for v in by.values())
-    return [choice(v) for v in by.values() for _ in range(m)]
-  return rows[:]                     # "all": col diversity only
+    k = max(1, cap // len(by))
+    return [choice(v) for v in by.values() for _ in range(k)]
+  if mode == "all":                  # subsample, no replacement
+    return sample(rows, min(len(rows), cap))
+  return [choice(rows) for _ in range(min(len(rows), cap))]  # boot w/ replace
 
 def forest(data, train, pos, n=None, mtry=None, mode=None):
   n     = n or the.trees
@@ -210,7 +213,7 @@ def forest(data, train, pos, n=None, mtry=None, mode=None):
   yfun  = lambda r: 1.0 if r[klass.at] == pos else 0.0      # numeric encode
   trees = []
   for _ in range(n):
-    root = clone(data, resample(train, klass, mode))
+    root = clone(data, resample(train, klass, mode, the.Some))
     trees.append((root, tree(root, yfun=yfun, mtry=mtry)))
   return trees
 
@@ -218,19 +221,23 @@ def predicts(root, t, rows):         # (want, got) pairs for confused()
   return [(r[root.cols.klass.at],
            mid(treeLeaf(root, t, r).cols.klass)) for r in rows]
 
-def treeMetrics(root, t, val, pos):  # 6 goals: pd,pf,prec, mean spd/ard/aaod
-  m  = confused(predicts(root, t, val)).get(pos) or o(pd=0, pf=1, prec=0)
-  fs = list(scoreFairness(root, t, val, pos).values())   # per protected col
-  avg = lambda k: sum(f[k] for f in fs)/len(fs) if fs else 0
-  return [m.pd, m.pf, m.prec, avg("spd"), avg("ard"), avg("aaod")]
+def treeMetrics(root, t, val, pos):  # goals: pd,pf,prec + one spd per protected
+  m    = confused(predicts(root, t, val)).get(pos) or o(pd=0, pf=1, prec=0)
+  fair = scoreFairness(root, t, val, pos)            # {col.txt: o(spd,..)}
+  spds = [fair[c.txt].spd if c.txt in fair else 0 for c in root.cols.protected]
+  return [m.pd, m.pf, m.prec] + spds
 
-# score each bias on 6 goals, then disty (Chebyshev-to-heaven over
+def goalNames(root):                 # disty col names: maximize +, minimize -
+  return ["pd+", "pf-", "prec+"] + ["spd_%s-" % c.txt.rstrip("~")
+                                    for c in root.cols.protected]
+
+# score each bias on the goals, then disty (Chebyshev-to-heaven over
 # norm'd goals) picks the tree closest to the ideal corner.
-SCORES = ["idX", "Pd+", "Pf-", "Prec+", "Spd-", "Ard-", "Aaod-"]
 def forestSelect(trees, val, pos):   # champion = min distance-to-heaven
+  names = ["idX"] + [g.capitalize() for g in goalNames(trees[0][0])]
   rows  = [[i] + treeMetrics(rt[0], rt[1], val, pos)
            for i, rt in enumerate(trees)]
-  board = Data([SCORES] + rows)
+  board = Data([names] + rows)
   best  = min(board.rows, key=lambda r: disty(board, r))
   return trees[int(best[0])], board, best
 
@@ -337,10 +344,8 @@ def groups(col, rows):            # top2 syms (Sym) or median split (Num)
 
 def scoreFairness(root, t, rows, pos):   # -> {col.txt: o(g1,g2,spd,ard,aaod)}
   klass = root.cols.klass
-  pred  = {}                                # row id -> predicted label
-  for leaf in leaves(t):
-    pk = mid(leaf.cols.klass)
-    for r in leaf.rows: pred[id(r)] = pk
+  pred  = {id(r): mid(treeLeaf(root, t, r).cols.klass)   # route ANY rows
+           for r in rows}                                # (held-out ok)
   out = {}
   for col in root.cols.protected:
     s1, g1, s2, g2 = groups(col, rows)
@@ -459,26 +464,29 @@ def test_general():             # mean WIN over 20 generalized runs
   print(round(ws.mu), len(d.rows), len(d.cols.x), len(d.cols.y),
         the.Budget, the.Check, the.file.split("/")[-1])
 
-def test_forest():              # 100 biases -> pick champion on val -> test
+def test_forest():              # mean+-sd of test goals over R train/test splits
   d     = Data(csv(the.file))
   klass = d.cols.klass
   pos   = the.pos
   if pos in (None, "", "auto"):
     pos = min(klass.has, key=klass.has.get)        # minority label
-  yfun     = lambda r: 1.0 if r[klass.at] == pos else 0.0
-  tr,  te  = split(d)                              # 80:20 train:test
-  fit, val = split(clone(d, tr))                   # train -> fit:val
-  trees    = forest(d, fit, pos)                   # 100 varied biases
-  champ, board, win = forestSelect(trees, val, pos)  # closest-to-heaven bias
-  base     = (root := clone(d, tr), tree(root, yfun=yfun))  # single-tree
-  out = [["model", "label", "pd", "pf", "prec", "acc", "f1"]]
-  for name, (rt, t) in [("champ", champ), ("tree", base)]:
-    if m := confused(predicts(rt, t, te)).get(pos):
-      out += [[name, pos] + [round(m[x], 2)
-              for x in ("pd","pf","prec","acc","f1")]]
+  yfun  = lambda r: 1.0 if r[klass.at] == pos else 0.0
+  goals = goalNames(d)                             # pd+,pf-,prec-, spd_<p>- ...
+  acc   = {m: [Num() for _ in goals] for m in ("champ", "tree")}
+  for _ in range(the.repeats):
+    tr,  te  = split(d)                            # 80:20 train:test
+    fit, val = split(clone(d, tr))                 # train -> fit:val
+    champ, *_ = forestSelect(forest(d, fit, pos), val, pos)
+    base      = (root := clone(d, tr), tree(root, yfun=yfun))
+    for name, (rt, t) in [("champ", champ), ("tree", base)]:
+      for col, v in zip(acc[name], treeMetrics(rt, t, te, pos)):
+        add(col, v)                                # Welford mean/sd
+  out = [["model"] + goals]
+  for name in ("champ", "tree"):
+    out += [[name] + ["%.2f+-%.2f" % (c.mu, c.sd) for c in acc[name]]]
   print(the.file.split("/")[-1],
-        " biases=%s mtry=%s rows=%s pos=%s d2heaven=%.2f n_test=%d" %
-        (the.trees, the.mtry, the.rows, pos, disty(board, win), len(te)))
+        " biases=%s mtry=%s rows=%s pos=%s repeats=%s" %
+        (the.trees, the.mtry, the.rows, pos, the.repeats))
   print2d(out)
 
 def test_tree():                # tree on N rows of -f
