@@ -60,23 +60,20 @@ def Data(src=[]):
   return adds(src, it)
 
 def add(it, v, w=1):
-  if v == "?": return it
-  if symp(it):
-    it[v] = it.get(v, 0) + w
-    return it
-  if nump(it):
-    n, mu, m2 = it
-    n += w
-    if n <= 0: return Num()
-    d   = v - mu
-    mu += w * d / n
-    m2 += w * d * (v - mu)
-    return (n, mu, m2)
-  else:
-    (it.rows.append if w==1 else it.rows.remove)(v)
-    for at, x in enumerate(v):
-      it.cols[at] = add(it.cols[at], x, w)
-    return it
+  if v != "?":
+    if   symp(it): it[v] = it.get(v, 0) + w
+    elif nump(it):
+      n, mu, m2 = it
+      if (n := n + w) <= 0: return Num()
+      d   = v - mu
+      mu += w * d / n
+      m2 += w * d * (v - mu)
+      it = (n, mu, m2)
+    else:
+      (it.rows.append if w==1 else it.rows.remove)(v)
+      for at, x in enumerate(v):
+        it.cols[at] = add(it.cols[at], x, w)
+  return it
 
 def adds(src, it=None):
   if it is None: it = Num()
