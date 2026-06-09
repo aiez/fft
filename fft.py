@@ -17,29 +17,41 @@ BIG = 1E32
 
 #-- 1. Columns --------------------------------------------------
 def Sym()  : return {}
-def Num()  : return (0,0,0)       # (n, mu, m2)
+def Num(n=0, mu=0, m2=0): return (n, mu, m2)   
+
+def n_(x) : return x[0]           # count
+def mu_(x): return x[1]           # mean
+def m2_(x): return x[2]           # sum of squared deviations (Welford M2)
 
 def symp(x): return isinstance(x,dict)
 def nump(x): return isinstance(x,tuple)
 
 def sd(num):
-  n, m2 = num[0], num[2]
+  n, mu, m2 = num
   return 0 if n < 2 else sqrt(max(0, m2)/(n-1))
 
+def welford(num, v, w=1):           # Num internal: add v (weight w)
+  n, mu, m2 = num
+  if (n := n + w) <= 0: return Num()
+  d = v - mu; mu += w * d / n
+  return n, mu, m2 + w * d * (v - mu)
+
 def norm(num,v):
-  z = (v - num[1])/ (sd(num) + 1/BIG)
+  n, mu, m2 = num
+  z = (v - mu)/ (sd(num) + 1/BIG)
   return 1/(1+ exp(-1.7*max(-3, min(3, z))))
 
 def merge(i, j, w=1):
   if symp(i):
      return {k: i.get(k,0) + w*j.get(k,0) for k in i | j}
-  (i_n,i_mu,i_m2), (j_n,j_mu,j_m2) = i, j
+  i_n,i_mu,i_m2 = i
+  j_n,j_mu,j_m2 = j
   n = i_n + w*j_n
   if n <= 0: return Num()
   mu = (i_n*i_mu + w*j_n*j_mu) / n
   d  = j_mu - i_mu
   m2 = i_m2 + w*j_m2 + w*d*d*i_n*j_n / n
-  return (n, mu, m2)
+  return Num(n, mu, m2)
 
 #-- 2. Data -----------------------------------------------------
 def Data(src=[]):
@@ -62,13 +74,7 @@ def Data(src=[]):
 def add(it, v, w=1):
   if v != "?":
     if   symp(it): it[v] = it.get(v, 0) + w
-    elif nump(it):
-      n, mu, m2 = it
-      if (n := n + w) <= 0: return Num()
-      d   = v - mu
-      mu += w * d / n
-      m2 += w * d * (v - mu)
-      it = (n, mu, m2)
+    elif nump(it): it = welford(it, v, w)
     else:
       (it.rows.append if w==1 else it.rows.remove)(v)
       for at, x in enumerate(v):
@@ -95,14 +101,14 @@ def cuts(data, rows, y):
 
 def symCuts(bins, tot, hi, at):
   for k, l in bins.items():
-    score = l[2] + merge(tot, l, -1)[2]
+    score = m2_(l) + m2_(merge(tot, l, -1))
     yield (score, at, hi[k], hi[k], l)
 
 def numCuts(bins, tot, hi, at):
   l = Num()
   for k in sorted(bins)[:-1]:
     l = merge(l, bins[k])
-    score = l[2] + merge(tot, l, -1)[2]
+    score = m2_(l) + m2_(merge(tot, l, -1))
     yield (score, at, -BIG, hi[k], l)
 
 #-- 4. build a tree ---------------------------------------------
@@ -124,10 +130,10 @@ def rest(rows, at, lo, hi):
 
 def splits(data, y, root):
   floor = len(root.rows)**.33
-  cs = [c for c in cuts(data, data.rows, y) if c[4][0] > floor]
+  cs = [c for c in cuts(data, data.rows, y) if n_(c[4]) > floor]
   if cs:
     for bit, pick in enumerate((min, max)):
-      _, at, lo, hi, leaf = pick(cs, key=lambda c: c[4][1])
+      _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
       no = rest(data.rows, at, lo, hi)
       if no:
         yield bit, o(at=at, lo=lo, hi=hi, left=leaf), no
@@ -141,13 +147,13 @@ def grows(data, y, root, d=0):
         yield str(bit)+bias, o(at=nd.at, lo=nd.lo, hi=nd.hi,
                                left=nd.left, right=right)
   if not any:
-    yield "", distys(data, data.rows)
+    yield "", adds(y(r) for r in data.rows)   
 
 #-- 5. use a tree -----------------------------------------------
 def predict(t, row):
-  while not isinstance(t, tuple):
+  while not nump(t):              
     t = t.left if has(row[t.at], t.lo, t.hi) else t.right
-  return t[1]
+  return mu_(t)
 
 def tune(cands, rows, y):
   err = lambda t: sum(abs(y(r)-predict(t,r))
@@ -155,15 +161,15 @@ def tune(cands, rows, y):
   return min(cands, key=err)
 
 def show(data, t):
-  if isinstance(t, tuple):
-    print("%-33s leaf  d2h %.2f n=%d" % ("", t[1], t[0]))
+  if nump(t):
+    print("%-33s leaf  d2h %.2f n=%d" % ("", mu_(t), n_(t)))
     return
   nm = data.names[t.at]
   if   t.lo == t.hi: c = f"{nm} == {t.lo}"
   elif t.lo == -BIG: c = f"{nm} <= {qty(t.hi)}"
   else:              c = f"{nm} >= {qty(t.lo)}"
   L = t.left
-  print("if %-30s then d2h %.2f n=%d" % (c, L[1], L[0]))
+  print("if %-30s then d2h %.2f n=%d" % (c, mu_(L), n_(L)))
   show(data, t.right)
 
 #-- 6. io -------------------------------------------------------
