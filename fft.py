@@ -19,9 +19,9 @@ BIG = 1E32
 def Sym()  : return {}
 def Num(n=0, mu=0, m2=0): return (n, mu, m2)   
 
-def n_(x) : return x[0]           # count
-def mu_(x): return x[1]           # mean
-def m2_(x): return x[2]           # sum of squared deviations (Welford M2)
+def n_(x) : return x[0]       
+def mu_(x): return x[1]      
+def m2_(x): return x[2]     
 
 def symp(x): return isinstance(x,dict)
 def nump(x): return isinstance(x,tuple)
@@ -30,7 +30,7 @@ def sd(num):
   n, mu, m2 = num
   return 0 if n < 2 else sqrt(max(0, m2)/(n-1))
 
-def welford(num, v, w=1):           # Num internal: add v (weight w)
+def welford(num, v, w=1):    
   n, mu, m2 = num
   if (n := n + w) <= 0: return Num()
   d = v - mu; mu += w * d / n
@@ -192,6 +192,12 @@ def qty(v):
   return v
 
 #-- 7. Dests/ demos --------------------------------------------
+def test_main():
+  data  = Data(csv(the.file))
+  y     = lambda r: disty(data, r)
+  cands = [t for _, t in grows(data, y, data)]
+  show(data, tune(cands, data.rows, y))
+
 def test_grows(repeats=10, k=100):
   import time
   rows = list(csv(the.file))
@@ -221,10 +227,9 @@ the=o(**{k:of(v) for k,v in re.findall(r"(\w+)=(\S+)", __doc__)})
 random.seed(the.seed)
 
 if __name__ == "__main__":
+  for f, v in zip(sys.argv, sys.argv[1:]):
+    for k in vars(the):
+      if f == "-"+k[0]: setattr(the, k, of(v))
   if   "--grows" in sys.argv: test_grows()
   elif "--trees" in sys.argv: test_trees()
-  else:
-    data  = Data(csv(the.file))
-    y     = lambda r: disty(data, r)
-    cands = [t for _, t in grows(data, y, data)]
-    show(data, tune(cands, data.rows, y))
+  else: test_main()
