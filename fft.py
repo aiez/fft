@@ -16,9 +16,11 @@ from types import SimpleNamespace as o
 BIG = 1E32
 
 #-- 1. Columns --------------------------------------------------
-def symp(x): return isinstance(x,dict)
 def Sym()  : return {}
 def Num()  : return (0,0,0)       # (n, mu, m2)
+
+def symp(x): return isinstance(x,dict)
+def nump(x): return isinstance(x,tuple)
 
 def sd(num):
   n, m2 = num[0], num[2]
@@ -28,42 +30,60 @@ def norm(num,v):
   z = (v - num[1])/ (sd(num) + 1/BIG)
   return 1/(1+ exp(-1.7*max(-3, min(3, z))))
 
+def merge(i, j, w=1):
+  if symp(i):
+     return {k: i.get(k,0) + w*j.get(k,0) for k in i | j}
+  (i_n,i_mu,i_m2), (j_n,j_mu,j_m2) = i, j
+  n = i_n + w*j_n
+  if n <= 0: return Num()
+  mu = (i_n*i_mu + w*j_n*j_mu) / n
+  d  = j_mu - i_mu
+  m2 = i_m2 + w*j_m2 + w*d*d*i_n*j_n / n
+  return (n, mu, m2)
+
 #-- 2. Data -----------------------------------------------------
 def Data(src=[]):
   def roles(names):
-    i.names = names
+    it.names = names
     for at, s in enumerate(names):
       z = s[-1]
-      i.cols[at] = Sym() if s[0].islower() else Num()
+      it.cols[at] = Sym() if s[0].islower() else Num()
       if z in "-+!":
-        i.y += [at]
-        i.goal[at] = z=="+"
-      elif z != "X": i.x += [at]
-      if z=="!": i.klass=at
+        it.y += [at]
+        it.goal[at] = z=="+"
+      elif z != "X": it.x += [at]
+      if z=="!": it.klass=at
 
   src = iter(src)
-  i=o(names=[], klass=None, x=[], y=[], goal={}, cols={},rows=[])
+  it=o(names=[],klass=None, x=[], y=[], goal={}, cols={},rows=[])
   roles(next(src))
-  for row in src: adds(i,row)
-  return i
+  return adds(src, it)
 
-def adds(data, row, w=1):
-  (data.rows.append if w==1 else data.rows.remove)(row)
-  for at, v in enumerate(row):
-    data.cols[at] = add(data.cols[at], v, w)
+def add(it, v, w=1):
+  if v == "?": return it
+  if symp(it):
+    it[v] = it.get(v, 0) + w
+    return it
+  if nump(it):
+    n, mu, m2 = it
+    n += w
+    if n <= 0: return Num()
+    d   = v - mu
+    mu += w * d / n
+    m2 += w * d * (v - mu)
+    return (n, mu, m2)
+  else:
+    (it.rows.append if w==1 else it.rows.remove)(v)
+    for at, x in enumerate(v):
+      it.cols[at] = add(it.cols[at], x, w)
+    return it
 
-def add(c, v, w=1):
-  if v == "?": return c
-  if symp(c): c[v] = c.get(v, 0) + w; return c
-  n, mu, m2 = c
-  n += w
-  if n <= 0: return Num()
-  d   = v - mu
-  mu += w * d / n
-  m2 += w * d * (v - mu)
-  return (n, mu, m2)
+def adds(src, it=None):
+  if it is None: it = Num()
+  for x in src: it = add(it, x)
+  return it
 
-#-- 3. Discetization --------------------------------------------
+##-- 3. Discetization --------------------------------------------
 def cuts(data, rows, y):
   ys = [y(r) for r in rows]
   for at in data.x:
@@ -88,18 +108,7 @@ def numCuts(bins, tot, hi, at):
     score = l[2] + merge(tot, l, -1)[2]
     yield (score, at, -BIG, hi[k], l)
 
-def merge(n1, n2, w=1):
-  if symp(n1):
-     return {k: n1.get(k,0) + w*n2.get(k,0) for k in n1 | n2}
-  (an,amu,am2), (bn,bmu,bm2) = n1, n2
-  n = an + w*bn
-  if n <= 0: return Num()
-  mu = (an*amu + w*bn*bmu) / n
-  d  = bmu - amu
-  m2 = am2 + w*bm2 + w*d*d*an*bn / n
-  return (n, mu, m2)
-
-#-- 4. build a tree ---------------------------------------------
+#-- 4. build a tree ---------------------------------------------
 def disty(data, row):
   p, s, n = the.p, 0, 0
   for at in data.y:
@@ -108,12 +117,10 @@ def disty(data, row):
     n += 1
   return (s/n)**(1/p) if n else 0
 
-def statOf(rows, y):
-  s = Num()
-  for r in rows: s = add(s, y(r))
-  return s
+def distys(data, rows):
+  return adds(disty(data, r) for r in rows)
 
-def has(v, lo, hi): return v == "?" or lo <= v <= hi 
+def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
 def rest(rows, at, lo, hi):    
   return [r for r in rows if not has(r[at], lo, hi)]
@@ -137,7 +144,7 @@ def grows(data, y, root, d=0):
         yield str(bit)+bias, o(at=nd.at, lo=nd.lo, hi=nd.hi,
                                left=nd.left, right=right)
   if not any:
-    yield "", statOf(data.rows, y)
+    yield "", distys(data, data.rows)
 
 #-- 5. use a tree -----------------------------------------------
 def predict(t, row):
@@ -162,7 +169,7 @@ def show(data, t):
   print("if %-30s then d2h %.2f n=%d" % (c, L[1], L[0]))
   show(data, t.right)
 
-#-- 6. io -------------------------------------------------------
+#-- 6. io -------------------------------------------------------
 def of(z):
   for f in (int, float):
     try: return f(z)
@@ -181,7 +188,7 @@ def qty(v):
     return int(v) if int(v)==v else round(v, the.Round)
   return v
 
-#-- 7. Dests/ demos --------------------------------------------
+#-- 7. Dests/ demos --------------------------------------------
 def test_grows(repeats=10, k=100):
   import time
   rows = list(csv(the.file))
