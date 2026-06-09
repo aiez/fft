@@ -1,21 +1,21 @@
 #!/usr/bin/env python3 -B
-"""r.py: fast-frugal multi-objective tree.
-(c) 2025 Tim Menzies timm@ieee.org, MIT license
+"""fft.py: fast-frugal multi-objective tree.
+(c) 2025, Tim Menzies timm@ieee.org, MIT license
 
 Options:
  -s seed     seed=1234567891
- -p dist exp  p=2
- -b bins      bins=7
- -d depth     depth=4
- -R Round     Round=2
- -f file      file=../optimiz/auto93.csv
+ -p dist     distance exppnent  p=2
+ -b bins     bins=7
+ -d depth    depth=4
+ -R Round    Round=2
+ -f file     file=../optimiz/auto93.csv
 """
 import sys, re, random
 from math import sqrt, exp
 from types import SimpleNamespace as o
 BIG = 1E32
 
-#-- 1. Columns ---------------------------------------------
+#-- 1. Columns --------------------------------------------------
 def symp(x): return isinstance(x,dict)
 def Sym()  : return {}
 def Num()  : return (0,0,0)       # (n, mu, m2)
@@ -28,7 +28,7 @@ def norm(num,v):
   z = (v - num[1])/ (sd(num) + 1/BIG)
   return 1/(1+ exp(-1.7*max(-3, min(3, z))))
 
-#-- 2. Data ------------------------------------------------
+#-- 2. Data -----------------------------------------------------
 def Data(src=[]):
   def roles(names):
     i.names = names
@@ -42,7 +42,7 @@ def Data(src=[]):
       if z=="!": i.klass=at
 
   src = iter(src)
-  i=o(names=[],klass=None,x=[],y=[],goal={},cols={},rows=[])
+  i=o(names=[], klass=None, x=[], y=[], goal={}, cols={},rows=[])
   roles(next(src))
   for row in src: adds(i,row)
   return i
@@ -63,7 +63,7 @@ def add(c, v, w=1):
   m2 += w * d * (v - mu)
   return (n, mu, m2)
 
-#-- 3. Discetization ---------------------------------------
+#-- 3. Discetization --------------------------------------------
 def cuts(data, rows, y):
   ys = [y(r) for r in rows]
   for at in data.x:
@@ -99,7 +99,7 @@ def merge(n1, n2, w=1):
   m2 = am2 + w*bm2 + w*d*d*an*bn / n
   return (n, mu, m2)
 
-#-- 4. build a tree ----------------------------------------
+#-- 4. build a tree ---------------------------------------------
 def disty(data, row):
   p, s, n = the.p, 0, 0
   for at in data.y:
@@ -139,7 +139,7 @@ def grows(data, y, root, d=0):
   if not any:
     yield "", statOf(data.rows, y)
 
-#-- 5. use a tree ------------------------------------------
+#-- 5. use a tree -----------------------------------------------
 def predict(t, row):
   while not isinstance(t, tuple):
     t = t.left if has(row[t.at], t.lo, t.hi) else t.right
@@ -162,7 +162,7 @@ def show(data, t):
   print("if %-30s then d2h %.2f n=%d" % (c, L[1], L[0]))
   show(data, t.right)
 
-#-- 6. io --------------------------------------------------
+#-- 6. io -------------------------------------------------------
 def of(z):
   for f in (int, float):
     try: return f(z)
@@ -181,7 +181,7 @@ def qty(v):
     return int(v) if int(v)==v else round(v, the.Round)
   return v
 
-#-- 7. Dests/ demos ---------------------------------------
+#-- 7. Dests/ demos --------------------------------------------
 def test_grows(repeats=10, k=100):
   import time
   rows = list(csv(the.file))
@@ -206,10 +206,11 @@ def test_trees():
     show(data, t)
     print()
 
-#-- 8. Start-up --------------------------------------------
+#-- 8. Start-up -------------------------------------------------
 the=o(**{k:of(v) for k,v in re.findall(r"(\w+)=(\S+)", __doc__)})
+random.seed(the.seed)
+
 if __name__ == "__main__":
-  random.seed(the.seed)
   if   "--grows" in sys.argv: test_grows()
   elif "--trees" in sys.argv: test_trees()
   else:
