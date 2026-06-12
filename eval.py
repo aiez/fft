@@ -5,7 +5,7 @@ Build trees on -t trainN sampled rows (seeded), eval on the rest.
 Per tree report: pd, pf, prec, ard, aaod (one each) + spd per
 protected (~) col. pos label from fairnez/labels.py (else minority).
 
-Uses fft.py as-is (grows/predict/Data/csv); y = 1.0 if pos else 0.0,
+Uses fft.py as-is (trees/predict/Data/csv); y = 1.0 if pos else 0.0,
 leaf mean thresholded at 0.5 = predicted class.
 
 Options:
@@ -15,7 +15,7 @@ Options:
 """
 import sys, os, random, importlib.util
 import fft
-from fft import Data, grows, predict, csv, of, o
+from fft import Data, trees, predict, csv, of, o
 
 EPS = 1e-32
 
@@ -120,7 +120,7 @@ def main(file, trainN, pos, repeats):
     shuf = random.sample(c.body, len(c.body))
     train, test = shuf[:trainN], shuf[trainN:]
     data = Data([c.names] + train)
-    for bias, t in grows(data.rows, c.y, data):
+    for bias, t in trees(data, c.y):
       scores.append([len(scores)+1, "%d:%s" % (rep, bias or "-")]
                     + score1(c, t, test))
   ds     = d2h(scores, c.names2)
@@ -146,7 +146,7 @@ def buildCands(c, trainN, repeats):
   for _ in range(repeats):
     tr   = random.sample(trainpool, min(trainN, len(trainpool)))
     data = Data([c.names] + tr)
-    cands += [t for _, t in grows(data.rows, c.y, data)]
+    cands += [t for _, t in trees(data, c.y)]
   return cands, test
 
 def evalPool(c, cands, test):        # d2h of every cand on `test`
@@ -210,7 +210,7 @@ def finalRun(file, trainN, pos, repeats, start, asCsv=False):
   for _ in range(repeats):
     tr = random.sample(train, min(trainN, len(train)))
     d  = Data([c.names] + tr)
-    for _, t in grows(d, c.y, d): cands.append(t); fits.append(tr)
+    for _, t in trees(d, c.y): cands.append(t); fits.append(tr)
   best, _ = race(c, cands, train, start)        # race on ALL train data
   gfi = score1(c, cands[best], fits[best])      # goals on FIT rows (seen)
   gtr = score1(c, cands[best], train)           # goals on all TRAIN

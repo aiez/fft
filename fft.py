@@ -128,26 +128,31 @@ def has(v, lo, hi): return v == "?" or lo <= v <= hi
 def rest(rows, at, lo, hi):    
   return [r for r in rows if not has(r[at], lo, hi)]
 
-def splits(rows, y, root):
-  floor = len(root.rows)**.33
-  cs = [c for c in cuts(root, rows, y) if n_(c[4]) > floor]
-  if cs:
-    for bit, pick in enumerate((min, max)):
-      _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
-      no = rest(rows, at, lo, hi)
-      if no:
-        yield bit, o(at=at, lo=lo, hi=hi, left=leaf), no
-  
-def grows(rows, y, root, d=0):
-  any = False
-  if d < the.depth:
-    for bit, nd, no in splits(rows, y, root):
-      for bias,right in grows(no, y, root, d+1):
-        any = True
-        yield str(bit)+bias, o(at=nd.at, lo=nd.lo, hi=nd.hi,
-                               left=nd.left, right=right)
-  if not any:
-    yield "", adds(y(r) for r in rows)   
+def trees(data, y=None):
+  # one oracle for all depths: y, bins, floor all root-scoped.
+  y     = y or (lambda r: disty(data, r))
+  floor = len(data.rows)**.33
+
+  def splits(rows):
+    cs = [c for c in cuts(data, rows, y) if n_(c[4]) > floor]
+    if cs:
+      for bit, pick in enumerate((min, max)):
+        _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
+        if (no := rest(rows, at, lo, hi)):
+          yield bit, o(at=at, lo=lo, hi=hi, left=leaf), no
+
+  def grows(rows, d=0):
+    any = False
+    if d < the.depth:
+      for bit, nd, no in splits(rows):
+        for bias, right in grows(no, d+1):
+          any = True
+          yield str(bit)+bias, o(at=nd.at, lo=nd.lo, hi=nd.hi,
+                                 left=nd.left, right=right)
+    if not any:
+      yield "", adds(y(r) for r in rows)
+
+  return grows(data.rows)   
 
 #-- 5. use a tree -----------------------------------------------
 def predict(t, row):
@@ -195,7 +200,7 @@ def qty(v):
 def test_main():
   data  = Data(csv(the.file))
   y     = lambda r: disty(data, r)
-  cands = [t for _, t in grows(data.rows, y, data)]
+  cands = [t for _, t in trees(data)]
   show(data, tune(cands, data.rows, y))
 
 def test_grows(repeats=10, k=100):
@@ -205,18 +210,17 @@ def test_grows(repeats=10, k=100):
   t = time.perf_counter()
   for _ in range(repeats):
     data = Data([names] + random.sample(body, k))
-    y    = lambda r: disty(data, r)
-    trees = list(grows(data.rows, y, data))
+    cands = list(trees(data))
   t = time.perf_counter() - t
   print("%dx (sample %d, %d trees): %.3f s  -> %.1f ms/round"
-        % (repeats, k, len(trees), t, t/repeats*1000))
+        % (repeats, k, len(cands), t, t/repeats*1000))
 
 def test_trees():
   data = Data(csv(the.file))
   y    = lambda r: disty(data, r)
   err  = lambda t: sum(abs(y(r)-predict(t,r)) 
                        for r in data.rows)/len(data.rows)
-  for i, (bias, t) in enumerate(grows(data.rows, y, data), 1):
+  for i, (bias, t) in enumerate(trees(data), 1):
     print("===== tree %2d   bias %-5s   err %.3f =====" % (
          i, bias, err(t)))
     show(data, t)
