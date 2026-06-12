@@ -9,6 +9,7 @@ Options:
  -d depth    depth=4
  -R Round    Round=2
  -f file     file=$DOOT/optimiz/auto93.csv
+
 """
 import sys, re, random, os
 from functools import wraps
@@ -17,8 +18,10 @@ from types import SimpleNamespace as o
 BIG = 1E32
 
 #-- 1. Columns --------------------------------------------------
+# if Num as tuples +  memos on disty, then (66..100)% faster s
+# for small to large files.  
 def Sym()  : return {}
-def Num(n=0, mu=0, m2=0): return (n, mu, m2) # 60% faster
+def Num(n=0, mu=0, m2=0): return (n, mu, m2) 
 
 def n_(x) : return x[0]       
 def mu_(x): return x[1]      
@@ -143,8 +146,9 @@ def trees(data, y=None):
   y     = memo(y or (lambda r: disty(data, r)))
   floor = len(data.rows)**.33
 
-  def splits(rows):
-    if cs := [c for c in cuts(data, rows, y) if n_(c[4]) > floor]:
+  def dfan(rows):              # dependent fan (FFTrees, Phillips et al'17):
+                               # cue+exit picked per branch; 2^depth blades
+    if cs := [c for c in cuts(data,rows, y) if n_(c[4]) > floor]:
       for bit, pick in enumerate((min, max)):
         _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
         if no := rest(rows, at, lo, hi):
@@ -153,7 +157,7 @@ def trees(data, y=None):
   def grows(rows, d=0):
     any = False
     if d < the.depth:
-      for bit, nd, no in splits(rows):
+      for bit, nd, no in dfan(rows):
         for bias, right in grows(no, d+1):
           any = True
           yield str(bit)+bias, o(at=nd.at, lo=nd.lo, hi=nd.hi,
