@@ -138,26 +138,23 @@ def memo(fn):                   # cache fn(row) by row identity
 
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
-def rest(rows, at, lo, hi):    
-  return [r for r in rows if not has(r[at], lo, hi)]
-
 def trees(data, y=None):
   # one oracle for all depths: y, bins, floor all root-scoped.
   y     = memo(y or (lambda r: disty(data, r)))
   floor = len(data.rows)**.33
 
-  def dfan(rows):              # dependent fan (FFTrees, Phillips et al'17):
-                               # cue+exit picked per branch; 2^depth blades
+  def dfan(rows): # dependent fan (FFTrees, Phillips et al'17):
+                  # cue+exit picked per branch; 2^depth blades
     if cs := [c for c in cuts(data,rows, y) if n_(c[4]) > floor]:
       for bit, pick in enumerate((min, max)):
         _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
-        if no := rest(rows, at, lo, hi):
+        if no := [r for r in rows if not has(r[at], lo, hi)]:
           yield bit, o(at=at, lo=lo, hi=hi, left=leaf), no
 
   def grows(rows, d=0):
     any = False
     if d < the.depth:
-      for bit, nd, no in dfan(rows):
+      for bit, nd, no in dfan(rows): 
         for bias, right in grows(no, d+1):
           any = True
           yield str(bit)+bias, o(at=nd.at, lo=nd.lo, hi=nd.hi,
