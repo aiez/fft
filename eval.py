@@ -9,7 +9,7 @@ Uses fft.py as-is (grows/predict/Data/csv); y = 1.0 if pos else 0.0,
 leaf mean thresholded at 0.5 = predicted class.
 
 Options:
- -f file     data file  (../fairnez/adult.csv)
+ -f file     data file  ($DOOT/fairnez/adult.csv)
  -t trainN   train rows  (200)
  -P pos      positive label  (auto)
 """
@@ -270,7 +270,7 @@ def compare(file, trainN, pos, repeats, start, asCsv=False):
 if __name__ == "__main__":
   a   = sys.argv
   get = lambda f, d: of(a[a.index(f)+1]) if f in a else d
-  fft.the.file = file = get("-f", "../fairnez/adult.csv")
+  fft.the.file = file = get("-f", os.path.expandvars("$DOOT/fairnez/adult.csv"))
   random.seed(fft.the.seed)
   if   "--csvhead" in a: print(",".join(CSVHEAD))
   elif "--finalhead" in a: print(",".join(FINALHEAD))

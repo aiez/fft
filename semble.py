@@ -27,11 +27,11 @@ Options:
  -n --repeats repeat splits    repeats=20
  -P --pos   positive klass label (auto: minority) pos=auto
  -f --file  data file
-            file=/Users/timm/gits/moot/optimize/misc/auto93.csv
+            file=$DOOT/optimiz/auto93.csv
 
-eg: python3 ample.py -f FILE -B 50 --tree
+eg: python3 semble.py -f FILE -B 50 --tree
 """
-import sys, re
+import sys, re, os
 from math import inf, log2, exp
 from random import sample, seed, choice
 
@@ -321,16 +321,16 @@ def confused(pairs):            # pairs = [(want, got), ...]
 # ## fairness (group gaps from confused() output) --------------
 # a, b = confused(pairs) of two protected groups; pos = positive label.
 # All return 0 at perfect parity; higher = more unfair.
-def rate(m):                      # acceptance rate: P(Ŷ=m.label) in group
+def rate(m):                      # acceptance rate: P(Yhat=m.label) in group
   return (m.tp + m.fp) / (m.tp + m.fp + m.fn + m.tn + 1e-32)
 
-def spd(a, b, pos):               # statistical parity diff: ΔP(Ŷ=pos)
+def spd(a, b, pos):               # statistical parity diff: delta P(Yhat=pos)
   return abs(rate(a[pos]) - rate(b[pos]))
 
 def ard(a, b, pos):               # accuracy rate diff: pooled-class acc gap
   return abs(a[pos].acc - b[pos].acc)
 
-def aaod(a, b, pos):              # avg abs odds diff: ½(|ΔFPR| + |ΔTPR|)
+def aaod(a, b, pos):              # avg abs odds diff: (|dFPR| + |dTPR|)/2
   return 0.5 * (abs(a[pos].pf - b[pos].pf) + abs(a[pos].pd - b[pos].pd))
 
 def groups(col, rows):            # top2 syms (Sym) or median split (Num)
@@ -498,7 +498,10 @@ def test_tree():                # tree on N rows of -f
   print2d(treeShow(d,t))
 
 # ## main -------------------------------------------------------
+os.environ.setdefault("DOOT",
+  os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 the = settings(__doc__)
+the.file = os.path.expandvars(the.file)
 seed(the.seed)
 if __name__ == "__main__":
   cli(the, __doc__, globals())

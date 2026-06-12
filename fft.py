@@ -8,9 +8,9 @@ Options:
  -b bins     bins=7
  -d depth    depth=4
  -R Round    Round=2
- -f file     file=../optimiz/auto93.csv
+ -f file     file=$DOOT/optimiz/auto93.csv
 """
-import sys, re, random
+import sys, re, random, os
 from math import sqrt, exp
 from types import SimpleNamespace as o
 BIG = 1E32
@@ -223,7 +223,10 @@ def test_trees():
     print()
 
 #-- 8. Start-up -------------------------------------------------
+os.environ.setdefault("DOOT",
+  os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 the=o(**{k:of(v) for k,v in re.findall(r"(\w+)=(\S+)", __doc__)})
+the.file=os.path.expandvars(the.file)
 random.seed(the.seed)
 
 if __name__ == "__main__":

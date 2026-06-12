@@ -1,14 +1,18 @@
 <!-- Copyright (c) 2026 Tim Menzies, MIT License https://opensource.org/licenses/MIT -->
-<img xalign="right" src="https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white" alt="Purpose"> <a href="https://timm.fyi"> <img xalign="right" src="https://img.shields.io/badge/Author-timm-dc143c?logo=readme&logoColor=white" alt="Author"></a> <img xalign="right" src="https://img.shields.io/badge/Language-Python-000080?logo=python&logoColor=white" alt="Language"><a href="https://choosealicense.com/licenses/mit/"> <img xalign="right" src="https://img.shields.io/badge/License-MIT-32cd32?logo=open-source-initiative&logoColor=white" alt="License"></a> 
+<img align="right" src="https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white" alt="Purpose"> <a href="https://timm.fyi"> <img align="right" src="https://img.shields.io/badge/Author-timm-dc143c?logo=readme&logoColor=white" alt="Author"></a> <img align="right" src="https://img.shields.io/badge/Language-Python-000080?logo=python&logoColor=white" alt="Language"><a href="https://choosealicense.com/licenses/mit/"> <img align="right" src="https://img.shields.io/badge/License-MIT-32cd32?logo=open-source-initiative&logoColor=white" alt="License"></a> 
 
 ### [http://tiny.cc/semble](http://tiny.cc/semble)
-Regression trees by greedy min-variance cuts on incremental column stats (Welford μ/σ). ~340 lines, pure Python, no deps. Data is CSV; column-name suffix tags type and goal.
+Regression trees by greedy min-variance cuts on incremental column stats (Welford mean/sd). ~340 lines, pure Python, no deps. Data is CSV; column-name suffix tags type and goal.
 
 ```bash
 # install and test
 git clone http://tiny.cc/optimiz && git clone http://tiny.cc/semble
 cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 ```
+
+**Sections:** [NAME](#name) | [SYNOPSIS](#synopsis) | [OPTIONS](#options) | [DATA](#data) | [TESTS](#tests) | [TREE OUTPUT](#tree-output) | [EXIT](#exit) | [SEE ALSO](#see-also) | [LICENSE](#license) | [AUTHOR](#author)
+
+**Files:** [semble.py](#file-semble-py) | [eval.py](#file-eval-py) | [fft.py](#file-fft-py)
 
 ## NAME
 
@@ -59,7 +63,7 @@ cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 
 ## TREE OUTPUT
 
-    Columns:  mark  win  GOAL±...  n  tree
+    Columns:  mark  win  GOAL+-...  n  tree
 
       win    0..100. 100 = optimum, 0 = mean, neg = worse.
       +      best leaf

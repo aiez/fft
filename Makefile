@@ -19,7 +19,8 @@ include $(KONFIG)/Makefile
 # 160-line per-tree score table (.txt) + full/sha/race compare (.csv).
 # pretty: column -s, -t ~/tmp/semble_ens.csv
 TMP   ?= $(HOME)/tmp
-DATA  ?= ../fairnez/adult.csv
+DOOT  ?= $(abspath $(KONFIG)/..)
+DATA  ?= $(DOOT)/fairnez/adult.csv
 SETS  := adult bank communities compas german law
 
 $(TMP)/semble_ens.txt: eval.py fft.py
@@ -31,7 +32,7 @@ $(TMP)/semble_ens.csv: eval.py fft.py
 	@mkdir -p $(TMP)
 	python3 -B eval.py --csvhead > $@
 	@for s in $(SETS); do \
-	  python3 -B eval.py -f ../fairnez/$$s.csv -t 100 -r 10 --csv >> $@; \
+	  python3 -B eval.py -f $(DOOT)/fairnez/$$s.csv -t 100 -r 10 --csv >> $@; \
 	done
 	@echo "wrote $@; pretty: column -s, -t $@"
 
@@ -44,9 +45,27 @@ $(TMP)/semble_best.csv: eval.py fft.py
 	@mkdir -p $(TMP)
 	python3 -B eval.py --finalhead > $@
 	@for s in $(SETS); do \
-	  python3 -B eval.py -f ../fairnez/$$s.csv -t 100 -r 10 --final >> $@; \
+	  python3 -B eval.py -f $(DOOT)/fairnez/$$s.csv -t 100 -r 10 --final >> $@; \
 	done
 	@echo "wrote $@; pretty: column -s, -t $@"
 
 .PHONY: best
 best: $(TMP)/semble_best.csv
+
+# ---- tests: one UPPERCASE rule each; `make test` finds them --------
+THE: ## test: config parses from docstring
+	@python3 -B semble.py --the
+
+STATS: ## test: per-column mid/spread on default data
+	@python3 -B semble.py --stats
+
+TREE: ## test: regression tree on default data
+	@python3 -B semble.py --tree
+
+FFT: ## test: fast-frugal tree demo
+	@python3 -B fft.py --main
+
+test: ## run every UPPERCASE test rule
+	@gawk -F: '/^[A-Z][A-Z_]*:[^=]/ {print $$1}' $(MAKEFILE_LIST) | \
+	  sort -u | while read t; do \
+	    printf "\n=== %s ===\n" "$$t"; $(MAKE) -s $$t; done
