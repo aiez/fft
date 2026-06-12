@@ -1,13 +1,13 @@
 <!-- Copyright (c) 2026 Tim Menzies, MIT License https://opensource.org/licenses/MIT -->
 <img align="right" src="https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white" alt="Purpose"> <a href="https://timm.fyi"> <img align="right" src="https://img.shields.io/badge/Author-timm-dc143c?logo=readme&logoColor=white" alt="Author"></a> <img align="right" src="https://img.shields.io/badge/Language-Python-000080?logo=python&logoColor=white" alt="Language"><a href="https://choosealicense.com/licenses/mit/"> <img align="right" src="https://img.shields.io/badge/License-MIT-32cd32?logo=open-source-initiative&logoColor=white" alt="License"></a> 
 
-### [http://tiny.cc/semble](http://tiny.cc/semble)
-Regression trees by greedy min-variance cuts on incremental column stats (Welford mean/sd). ~340 lines, pure Python, no deps. Data is CSV; column-name suffix tags type and goal.
+### [http://tiny.cc/fft](http://tiny.cc/fft)
+A fast-and-frugal tree (FFT) makes urgent binary choices via a few yes/no questions, deliberately ignoring most of the data: fast since little computation, frugal since it often stops after one or two cues. Here: FFTs plus regression trees by greedy min-variance cuts on incremental column stats (Welford mean/sd). ~340 lines, pure Python, no deps. Data is CSV; column-name suffix tags type and goal.
 
 ```bash
 # install and test
-git clone http://tiny.cc/optimiz && git clone http://tiny.cc/semble
-cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
+git clone http://tiny.cc/optimiz && git clone http://tiny.cc/fft
+cd fft && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 ```
 
 **Sections:** [NAME](#name) | [SYNOPSIS](#synopsis) | [OPTIONS](#options) | [DATA](#data) | [TESTS](#tests) | [TREE OUTPUT](#tree-output) | [EXIT](#exit) | [SEE ALSO](#see-also) | [LICENSE](#license) | [AUTHOR](#author)

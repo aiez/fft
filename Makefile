@@ -2,7 +2,7 @@
 # knobs  only; all targets live in $(KONFIG)/Makefile
 KONFIG ?= ../konfig
 
-APP   := semble
+APP   := fft
 MAIN  := semble.py
 EXT   := py
 LANG  := python
