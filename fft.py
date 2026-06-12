@@ -17,7 +17,7 @@ BIG = 1E32
 
 #-- 1. Columns --------------------------------------------------
 def Sym()  : return {}
-def Num(n=0, mu=0, m2=0): return (n, mu, m2)   
+def Num(n=0, mu=0, m2=0): return (n, mu, m2) # 60% faster
 
 def n_(x) : return x[0]       
 def mu_(x): return x[1]      
@@ -123,6 +123,14 @@ def disty(data, row):
 def distys(data, rows):
   return adds(disty(data, r) for r in rows)
 
+def ydist(data):                # disty, memoized by row identity
+  m = {}
+  def y(row):
+    i = id(row)
+    if i not in m: m[i] = disty(data, row)
+    return m[i]
+  return y
+
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
 def rest(rows, at, lo, hi):    
@@ -130,7 +138,7 @@ def rest(rows, at, lo, hi):
 
 def trees(data, y=None):
   # one oracle for all depths: y, bins, floor all root-scoped.
-  y     = y or (lambda r: disty(data, r))
+  y     = y or ydist(data)
   floor = len(data.rows)**.33
 
   def splits(rows):
@@ -199,8 +207,8 @@ def qty(v):
 #-- 7. Dests/ demos --------------------------------------------
 def test_main():
   data  = Data(csv(the.file))
-  y     = lambda r: disty(data, r)
-  cands = [t for _, t in trees(data)]
+  y     = ydist(data)
+  cands = [t for _, t in trees(data, y)]
   show(data, tune(cands, data.rows, y))
 
 def test_grows(repeats=10, k=100):
@@ -217,7 +225,7 @@ def test_grows(repeats=10, k=100):
 
 def test_trees():
   data = Data(csv(the.file))
-  y    = lambda r: disty(data, r)
+  y    = ydist(data)
   err  = lambda t: sum(abs(y(r)-predict(t,r)) 
                        for r in data.rows)/len(data.rows)
   for i, (bias, t) in enumerate(trees(data), 1):
