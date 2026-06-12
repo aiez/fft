@@ -6,7 +6,7 @@ A fast-and-frugal tree (FFT) makes urgent binary choices via a few yes/no questi
 
 ```bash
 # install and test
-git clone http://tiny.cc/optimiz && git clone http://tiny.cc/fft
+git clone http://tiny.cc/optimiz && git clone http://tiny.cc/fft fft
 cd fft && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 ```
 
