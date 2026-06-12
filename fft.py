@@ -12,7 +12,6 @@ Options:
 
 """
 import sys, re, random, os
-from functools import wraps
 from math import sqrt, exp
 from types import SimpleNamespace as o
 BIG = 1E32
@@ -179,7 +178,6 @@ def show(data, t):
 #-- 6. lin -------------------------------------------------------
 def memo(fn):               # cache fn(row) by row identity
   cache = {}
-  @wraps(fn)
   def f1(row):
     if (k := id(row)) not in cache: cache[k] = fn(row)
     return cache[k]
