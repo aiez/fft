@@ -125,14 +125,12 @@ def distys(data, rows):
   return adds(disty(data, r) for r in rows)
 
 def memo(fn):                   # cache fn(row) by row identity
-  if getattr(fn, "_memo", False): return fn
   cache = {}
   @wraps(fn)
   def f1(row):
     k = id(row)
     if k not in cache: cache[k] = fn(row)
     return cache[k]
-  f1._memo = True
   return f1
 
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
@@ -149,7 +147,7 @@ def trees(data, y=None):
     if cs := [c for c in cuts(data, rows, y) if n_(c[4]) > floor]:
       for bit, pick in enumerate((min, max)):
         _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
-        if (no := rest(rows, at, lo, hi)):
+        if no := rest(rows, at, lo, hi):
           yield bit, o(at=at, lo=lo, hi=hi, left=leaf), no
 
   def grows(rows, d=0):
