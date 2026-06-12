@@ -11,6 +11,7 @@ Options:
  -f file     file=$DOOT/optimiz/auto93.csv
 """
 import sys, re, random, os
+from functools import wraps
 from math import sqrt, exp
 from types import SimpleNamespace as o
 BIG = 1E32
@@ -123,13 +124,16 @@ def disty(data, row):
 def distys(data, rows):
   return adds(disty(data, r) for r in rows)
 
-def ydist(data):                # disty, memoized by row identity
-  m = {}
-  def y(row):
-    i = id(row)
-    if i not in m: m[i] = disty(data, row)
-    return m[i]
-  return y
+def memo(fn):                   # cache fn(row) by row identity
+  if getattr(fn, "_memo", False): return fn
+  cache = {}
+  @wraps(fn)
+  def f1(row):
+    k = id(row)
+    if k not in cache: cache[k] = fn(row)
+    return cache[k]
+  f1._memo = True
+  return f1
 
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
@@ -138,12 +142,11 @@ def rest(rows, at, lo, hi):
 
 def trees(data, y=None):
   # one oracle for all depths: y, bins, floor all root-scoped.
-  y     = y or ydist(data)
+  y     = memo(y or (lambda r: disty(data, r)))
   floor = len(data.rows)**.33
 
   def splits(rows):
-    cs = [c for c in cuts(data, rows, y) if n_(c[4]) > floor]
-    if cs:
+    if cs := [c for c in cuts(data, rows, y) if n_(c[4]) > floor]:
       for bit, pick in enumerate((min, max)):
         _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
         if (no := rest(rows, at, lo, hi)):
@@ -207,7 +210,7 @@ def qty(v):
 #-- 7. Dests/ demos --------------------------------------------
 def test_main():
   data  = Data(csv(the.file))
-  y     = ydist(data)
+  y     = memo(lambda r: disty(data, r))
   cands = [t for _, t in trees(data, y)]
   show(data, tune(cands, data.rows, y))
 
@@ -225,7 +228,7 @@ def test_grows(repeats=10, k=100):
 
 def test_trees():
   data = Data(csv(the.file))
-  y    = ydist(data)
+  y    = memo(lambda r: disty(data, r))
   err  = lambda t: sum(abs(y(r)-predict(t,r)) 
                        for r in data.rows)/len(data.rows)
   for i, (bias, t) in enumerate(trees(data), 1):
