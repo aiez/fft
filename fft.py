@@ -4,7 +4,7 @@
 
 Options:
  -s seed     seed=1234567891
- -p dist     distance exppnent  p=2
+ -p dist     distance exponent  p=2
  -b bins     bins=7
  -d depth    depth=4
  -R Round    Round=2

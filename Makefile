@@ -3,7 +3,7 @@
 KONFIG ?= ../konfig
 
 APP   := fft
-MAIN  := semble.py
+MAIN  := fft.py
 EXT   := py
 LANG  := python
 LINT  := ruff check *.py
@@ -17,18 +17,18 @@ include $(KONFIG)/Makefile
 
 # ---- ensemble eval -------------------------------------------------
 # 160-line per-tree score table (.txt) + full/sha/race compare (.csv).
-# pretty: column -s, -t ~/tmp/semble_ens.csv
+# pretty: column -s, -t ~/tmp/fft_ens.csv
 TMP   ?= $(HOME)/tmp
 DOOT  ?= $(abspath $(KONFIG)/..)
 DATA  ?= $(DOOT)/fairnez/adult.csv
 SETS  := adult bank communities compas german law
 
-$(TMP)/semble_ens.txt: eval.py fft.py
+$(TMP)/fft_ens.txt: eval.py fft.py
 	@mkdir -p $(TMP)
 	python3 -B eval.py -f $(DATA) -t 100 -r 10 > $@
 	@echo "wrote $@"
 
-$(TMP)/semble_ens.csv: eval.py fft.py
+$(TMP)/fft_ens.csv: eval.py fft.py
 	@mkdir -p $(TMP)
 	python3 -B eval.py --csvhead > $@
 	@for s in $(SETS); do \
@@ -37,11 +37,11 @@ $(TMP)/semble_ens.csv: eval.py fft.py
 	@echo "wrote $@; pretty: column -s, -t $@"
 
 .PHONY: ens
-ens: $(TMP)/semble_ens.txt $(TMP)/semble_ens.csv
+ens: $(TMP)/fft_ens.txt $(TMP)/fft_ens.csv
 
 # best-tree-per-dataset: race on train, report goals on test. one row/set.
-# pretty: column -s, -t ~/tmp/semble_best.csv
-$(TMP)/semble_best.csv: eval.py fft.py
+# pretty: column -s, -t ~/tmp/fft_best.csv
+$(TMP)/fft_best.csv: eval.py fft.py
 	@mkdir -p $(TMP)
 	python3 -B eval.py --finalhead > $@
 	@for s in $(SETS); do \
@@ -50,20 +50,17 @@ $(TMP)/semble_best.csv: eval.py fft.py
 	@echo "wrote $@; pretty: column -s, -t $@"
 
 .PHONY: best
-best: $(TMP)/semble_best.csv
+best: $(TMP)/fft_best.csv
 
 # ---- tests: one UPPERCASE rule each; `make test` finds them --------
-THE: ## test: config parses from docstring
-	@python3 -B semble.py --the
+TREE: ## test: grow 16 trees, show the best
+	@python3 -B fft.py
 
-STATS: ## test: per-column mid/spread on default data
-	@python3 -B semble.py --stats
+TREES: ## test: show all 16 candidate trees
+	@python3 -B fft.py --trees
 
-TREE: ## test: regression tree on default data
-	@python3 -B semble.py --tree
-
-FFT: ## test: fast-frugal tree demo
-	@python3 -B fft.py --main
+GROWS: ## test: tree-building speed
+	@python3 -B fft.py --grows
 
 test: ## run every UPPERCASE test rule
 	@gawk -F: '/^[A-Z][A-Z_]*:[^=]/ {print $$1}' $(MAKEFILE_LIST) | \
