@@ -125,15 +125,6 @@ def disty(data, row):
   return (s/n)**(1/p) if n else 0
 
 
-def memo(fn):                   # cache fn(row) by row identity
-  cache = {}
-  @wraps(fn)
-  def f1(row):
-    k = id(row)
-    if k not in cache: cache[k] = fn(row)
-    return cache[k]
-  return f1
-
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
 def trees(data, y=None):
@@ -185,7 +176,15 @@ def show(data, t):
   print("if %-30s then d2h %.2f n=%d" % (c, mu_(L), n_(L)))
   show(data, t.right)
 
-#-- 6. io -------------------------------------------------------
+#-- 6. lin -------------------------------------------------------
+def memo(fn):               # cache fn(row) by row identity
+  cache = {}
+  @wraps(fn)
+  def f1(row):
+    if (k := id(row)) not in cache: cache[k] = fn(row)
+    return cache[k]
+  return f1
+
 def of(z):
   for f in (int, float):
     try: return f(z)
