@@ -124,8 +124,6 @@ def disty(data, row):
     n += 1
   return (s/n)**(1/p) if n else 0
 
-def distys(data, rows):
-  return adds(disty(data, r) for r in rows)
 
 def memo(fn):                   # cache fn(row) by row identity
   cache = {}
