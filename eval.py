@@ -120,7 +120,7 @@ def main(file, trainN, pos, repeats):
     shuf = random.sample(c.body, len(c.body))
     train, test = shuf[:trainN], shuf[trainN:]
     data = Data([c.names] + train)
-    for bias, t in grows(data, c.y, data):
+    for bias, t in grows(data.rows, c.y, data):
       scores.append([len(scores)+1, "%d:%s" % (rep, bias or "-")]
                     + score1(c, t, test))
   ds     = d2h(scores, c.names2)
@@ -146,7 +146,7 @@ def buildCands(c, trainN, repeats):
   for _ in range(repeats):
     tr   = random.sample(trainpool, min(trainN, len(trainpool)))
     data = Data([c.names] + tr)
-    cands += [t for _, t in grows(data, c.y, data)]
+    cands += [t for _, t in grows(data.rows, c.y, data)]
   return cands, test
 
 def evalPool(c, cands, test):        # d2h of every cand on `test`
