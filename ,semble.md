@@ -71,7 +71,7 @@ cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 
     Example:
 
-      python3 -B semble.py -f ../optimiz/SS-N.csv --tree
+      python3 -B semble.py -f ../optimiz/config_SS-N.csv --tree
 
 ## EXIT
 
@@ -80,7 +80,7 @@ cd semble && python3 -B semble.py -f ../optimiz/auto93.csv --tree
 
 ## SEE ALSO
 
-    http://tiny.cc/optimiz  example CSVs (auto93, SS-N, ...)
+    http://tiny.cc/optimiz  example CSVs (auto93, config_SS-N, ...)
     http://tiny.cc/konfig   shared Makefile, bashrc, nvim, tmux
 
 ## LICENSE
