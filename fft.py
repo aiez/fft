@@ -127,35 +127,34 @@ def disty(data, row):
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
 def trees(data, y=None):
-  # one oracle for all depths: y, bins, floor all root-scoped.
+  # ifan (FFTrees, Phillips et al'17): rank cues ONCE on root, keep
+  # the top `depth`, then fan over 2^depth exit-direction patterns.
+  # y + cue ranking root-scoped; a bin means the same root-scale notch.
   y     = memo(y or (lambda r: disty(data, r)))
-  floor = len(data.rows)**.33
+  best  = {}                          # lowest-score (best) cut per cue
+  for c in cuts(data, data.rows, y):
+    if c[1] not in best or c[0] < best[c[1]][0]: best[c[1]] = c
+  order = [c[1:4] for c in sorted(best.values())[:the.depth]]   # (at,lo,hi)
 
-  def dfan(rows): # dependent fan (FFTrees, Phillips et al'17):
-                  # cue+exit picked per branch; 2^depth blades
-    if cs := [c for c in cuts(data,rows, y) if n_(c[4]) > floor]:
-      for bit, pick in enumerate((min, max)):
-        _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
-        if no := [r for r in rows if not has(r[at], lo, hi)]:
-          yield bit, o(at=at, lo=lo, hi=hi, left=leaf), no
+  def grow(rows, lvl, bits):          # bit lvl: exit matched(1) or rest(0)?
+    if lvl == len(order) or not rows:
+      return adds(y(r) for r in rows)
+    at, lo, hi = order[lvl]
+    yes  = bool(bits & 1)
+    out  = [r for r in rows if has(r[at], lo, hi) == yes]    # exits here
+    cont = [r for r in rows if has(r[at], lo, hi) != yes]    # falls through
+    if not out or not cont:           # degenerate cut: skip this cue
+      return grow(rows, lvl + 1, bits >> 1)
+    return o(at=at, lo=lo, hi=hi, yes=yes,
+             left=adds(y(r) for r in out), right=grow(cont, lvl+1, bits>>1))
 
-  def grows(rows, d=0):
-    any = False
-    if d < the.depth:
-      for bit, nd, no in dfan(rows): 
-        for bias, right in grows(no, d+1):
-          any = True
-          yield str(bit)+bias, o(at=nd.at, lo=nd.lo, hi=nd.hi,
-                                 left=nd.left, right=right)
-    if not any:
-      yield "", adds(y(r) for r in rows)
-
-  return grows(data.rows)   
+  for bits in range(2 ** len(order)):
+    yield f"{bits:0{max(1,len(order))}b}", grow(data.rows, 0, bits)
 
 #-- 5. use a tree -----------------------------------------------
 def predict(t, row):
-  while not nump(t):              
-    t = t.left if has(row[t.at], t.lo, t.hi) else t.right
+  while not nump(t):              # left = exit leaf, right = fall-through
+    t = t.left if has(row[t.at], t.lo, t.hi) == t.yes else t.right
   return mu_(t)
 
 def tune(cands, rows, y):
@@ -167,10 +166,10 @@ def show(data, t):
   if nump(t):
     print("%-33s leaf  d2h %.2f n=%d" % ("", mu_(t), n_(t)))
     return
-  nm = data.names[t.at]
-  if   t.lo == t.hi: c = f"{nm} == {t.lo}"
-  elif t.lo == -BIG: c = f"{nm} <= {qty(t.hi)}"
-  else:              c = f"{nm} >= {qty(t.lo)}"
+  nm = data.names[t.at]                       # negate cue if exit is rest-side
+  if   t.lo == t.hi: c = f"{nm} {'==' if t.yes else '!='} {t.lo}"
+  elif t.lo == -BIG: c = f"{nm} {'<=' if t.yes else '>'} {qty(t.hi)}"
+  else:              c = f"{nm} {'>=' if t.yes else '<'} {qty(t.lo)}"
   L = t.left
   print("if %-30s then d2h %.2f n=%d" % (c, mu_(L), n_(L)))
   show(data, t.right)
