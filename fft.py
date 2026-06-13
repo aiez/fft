@@ -123,7 +123,6 @@ def disty(data, row):
     n += 1
   return (s/n)**(1/p) if n else 0
 
-
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
 def trees(data, y=None):
@@ -133,7 +132,7 @@ def trees(data, y=None):
   y     = memo(y or (lambda r: disty(data, r)))
   best  = {}                          # lowest-score (best) cut per cue
   for c in cuts(data, data.rows, y):
-    if c[1] not in best or c[0] < best[c[1]][0]: best[c[1]] = c
+    best[c[1]] = min(best.get(c[1], c), c)
   order = [c[1:4] for c in sorted(best.values())[:the.depth]]   # (at,lo,hi)
 
   def grow(rows, lvl):                # at each cue, fan BOTH exit directions
