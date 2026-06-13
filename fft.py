@@ -136,20 +136,22 @@ def trees(data, y=None):
     if c[1] not in best or c[0] < best[c[1]][0]: best[c[1]] = c
   order = [c[1:4] for c in sorted(best.values())[:the.depth]]   # (at,lo,hi)
 
-  def grow(rows, lvl, bits):          # bit lvl: exit matched(1) or rest(0)?
-    if lvl == len(order) or not rows:
-      return adds(y(r) for r in rows)
-    at, lo, hi = order[lvl]
-    yes  = bool(bits & 1)
-    out  = [r for r in rows if has(r[at], lo, hi) == yes]    # exits here
-    cont = [r for r in rows if has(r[at], lo, hi) != yes]    # falls through
-    if not out or not cont:           # degenerate cut: skip this cue
-      return grow(rows, lvl + 1, bits >> 1)
-    return o(at=at, lo=lo, hi=hi, yes=yes,
-             left=adds(y(r) for r in out), right=grow(cont, lvl+1, bits>>1))
+  def grow(rows, lvl):                # at each cue, fan BOTH exit directions
+    any = False
+    if lvl < len(order) and rows:
+      at, lo, hi = order[lvl]
+      for yes in (False, True):
+        out  = [r for r in rows if has(r[at], lo, hi) == yes]   # exits here
+        cont = [r for r in rows if has(r[at], lo, hi) != yes]   # falls through
+        if out and cont:
+          for bias, right in grow(cont, lvl + 1):
+            any = True
+            yield str(int(yes)) + bias, o(at=at, lo=lo, hi=hi, yes=yes,
+                     left=adds(y(r) for r in out), right=right)
+    if not any:
+      yield "", adds(y(r) for r in rows)
 
-  for bits in range(2 ** len(order)):
-    yield f"{bits:0{max(1,len(order))}b}", grow(data.rows, 0, bits)
+  return grow(data.rows, 0)
 
 #-- 5. use a tree -----------------------------------------------
 def predict(t, row):
