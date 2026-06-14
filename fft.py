@@ -134,14 +134,15 @@ def trees(data, y=None):
   blades = (dfan if the.Fan == "dfan" else ifan)(data, y)
   def grow(rows, lvl):
     used = False
-    for at, lo, hi, yes in blades(rows, lvl):
-      out  = [r for r in rows if has(r[at], lo, hi) == yes]   # exits here
-      cont = [r for r in rows if has(r[at], lo, hi) != yes]   # falls thru
-      if out and cont:
-        for bias, right in grow(cont, lvl + 1):
-          used = True
-          yield str(int(yes)) + bias, o(at=at, lo=lo, hi=hi, yes=yes,
-                   left=adds(y(r) for r in out), right=right)
+    if lvl < the.depth:                       # depth bound lives here, once
+      for at, lo, hi, yes in blades(rows, lvl):
+        out  = [r for r in rows if has(r[at], lo, hi) == yes]  # exits here
+        cont = [r for r in rows if has(r[at], lo, hi) != yes]  # falls thru
+        if out and cont:
+          for bias, right in grow(cont, lvl + 1):
+            used = True
+            yield str(int(yes)) + bias, o(at=at, lo=lo, hi=hi, yes=yes,
+                     left=adds(y(r) for r in out), right=right)
     if not used:
       yield "", adds(y(r) for r in rows)
   return grow(data.rows, 0)
@@ -161,15 +162,17 @@ def ifan(data, y):
   return blades
 
 def dfan(data, y):
-  # dependent fan: re-cut the branch rows each level; take the min- and
-  # max-d2h cuts, exiting the matched side (yes=True).
+  # dependent fan: re-cut the branch rows; STREAM cuts (no list), keep
+  # only the running min- and max-d2h, exit the matched side (yes=True).
   floor = len(data.rows) ** .33
   def blades(rows, lvl):
-    if lvl < the.depth and (cs := [c for c in cuts(data, rows, y)
-                                   if n_(c[4]) > floor]):
-      for pick in (min, max):
-        _, at, lo, hi, _ = pick(cs, key=lambda c: mu_(c[4]))
-        yield at, lo, hi, True
+    lo = hi = None
+    for c in cuts(data, rows, y):
+      if n_(c[4]) > floor:
+        if lo is None or mu_(c[4]) < mu_(lo[4]): lo = c
+        if hi is None or mu_(c[4]) > mu_(hi[4]): hi = c
+    for c in (lo, hi):
+      if c: yield c[1], c[2], c[3], True
   return blades
 
 #-- 5. use a tree -----------------------------------------------
