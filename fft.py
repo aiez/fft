@@ -8,6 +8,7 @@ Options:
  -b bins     bins=7
  -d depth    depth=4
  -R Round    Round=2
+ -F fan      cue fan: ifan|dfan  Fan=ifan
  -f file     file=$DOOT/optimiz/auto93.csv
 
 """
@@ -126,22 +127,26 @@ def disty(data, row):
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
 def trees(data, y=None):
-  # ifan (FFTrees, Phillips et al'17): rank cues ONCE on root, keep
-  # the top `depth`, then fan over 2^depth exit-direction patterns.
-  # y + cue ranking root-scoped; a bin means the same root-scale notch.
-  y     = memo(y or (lambda r: disty(data, r)))
-  best  = {}                          # lowest-score (best) cut per cue
+  # pick the fan method by `the.Fan`: ifan (rank cues once on root) or
+  # dfan (re-pick cue+exit per branch). Both yield (bias, tree) and set
+  # node.yes, so predict/show stay shared.
+  y = memo(y or (lambda r: disty(data, r)))
+  return (dfan if the.Fan == "dfan" else ifan)(data, y)
+
+def ifan(data, y):
+  # independent fan (FFTrees, Phillips et al'17): rank cues ONCE on
+  # root, keep top `depth`, fan over 2^depth exit-direction patterns.
+  best = {}                           # lowest-score (best) cut per cue
   for c in cuts(data, data.rows, y):
     best[c[1]] = min(best.get(c[1], c), c)
-  order = [c[1:4] for c in sorted(best.values())[:the.depth]]   # (at,lo,hi)
-
-  def grow(rows, lvl):                # at each cue, fan BOTH exit directions
+  order = [c[1:4] for c in sorted(best.values())[:the.depth]]  # (at,lo,hi)
+  def grow(rows, lvl):                # at each cue, fan BOTH exit dirs
     any = False
     if lvl < len(order) and rows:
       at, lo, hi = order[lvl]
       for yes in (False, True):
         out  = [r for r in rows if has(r[at], lo, hi) == yes]   # exits here
-        cont = [r for r in rows if has(r[at], lo, hi) != yes]   # falls through
+        cont = [r for r in rows if has(r[at], lo, hi) != yes]   # falls thru
         if out and cont:
           for bias, right in grow(cont, lvl + 1):
             any = True
@@ -149,8 +154,29 @@ def trees(data, y=None):
                      left=adds(y(r) for r in out), right=right)
     if not any:
       yield "", adds(y(r) for r in rows)
-
   return grow(data.rows, 0)
+
+def dfan(data, y):
+  # dependent fan: cue+exit re-picked per branch; 2^depth blades. Nodes
+  # always exit the matched side, so yes=True keeps predict/show shared.
+  floor = len(data.rows) ** .33
+  def fan(rows):
+    if cs := [c for c in cuts(data, rows, y) if n_(c[4]) > floor]:
+      for bit, pick in enumerate((min, max)):
+        _, at, lo, hi, leaf = pick(cs, key=lambda c: mu_(c[4]))
+        if no := [r for r in rows if not has(r[at], lo, hi)]:
+          yield bit, o(at=at, lo=lo, hi=hi, yes=True, left=leaf), no
+  def grow(rows, d=0):
+    any = False
+    if d < the.depth:
+      for bit, nd, no in fan(rows):
+        for bias, right in grow(no, d + 1):
+          any = True
+          yield str(bit) + bias, o(at=nd.at, lo=nd.lo, hi=nd.hi, yes=True,
+                                   left=nd.left, right=right)
+    if not any:
+      yield "", adds(y(r) for r in rows)
+  return grow(data.rows)
 
 #-- 5. use a tree -----------------------------------------------
 def predict(t, row):

@@ -32,6 +32,7 @@ cd fft && python3 -B fft.py -f ../optimiz/auto93.csv
       -b bins     numeric bin count        (7)
       -d depth    max tree depth           (4)
       -R Round    display decimals         (2)
+      -F fan      cue fan: ifan | dfan     (ifan)
       -f file     data file                ($DOOT/optimiz/auto93.csv)
 
     eval.py:
