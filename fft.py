@@ -127,52 +127,56 @@ def disty(data, row):
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
 def trees(data, y=None):
-  # The ONLY ifan/dfan difference is `blades(rows, lvl)`: which cues
-  # (at,lo,hi,exit) to try at a level. The split + recurse + leaf are
-  # shared. blades yields (at, lo, hi, yes); grow does the rest.
-  y      = memo(y or (lambda r: disty(data, r)))
-  blades = (dfan if the.Fan == "dfan" else ifan)(data, y)
-  def grow(rows, lvl):
-    used = False
-    if lvl < the.depth:                       # depth bound lives here, once
-      for at, lo, hi, yes in blades(rows, lvl):
-        out  = [r for r in rows if has(r[at], lo, hi) == yes]  # exits here
-        cont = [r for r in rows if has(r[at], lo, hi) != yes]  # falls thru
-        if out and cont:
-          for bias, right in grow(cont, lvl + 1):
-            used = True
-            yield str(int(yes)) + bias, o(at=at, lo=lo, hi=hi, yes=yes,
-                     left=adds(y(r) for r in out), right=right)
-    if not used:
-      yield "", adds(y(r) for r in rows)
-  return grow(data.rows, 0)
+  # Build ONE binary tree (split rows matched/rest, recurse), then the
+  # fan = walk it, choosing which child exits at each level. The ONLY
+  # ifan/dfan difference is `pick`: which cut splits a node.
+  y    = memo(y or (lambda r: disty(data, r)))
+  pick = (dfan if the.Fan == "dfan" else ifan)(data, y)
+  return walk(build(data, data.rows, 0, y, pick))
+
+def build(data, rows, lvl, y, pick):
+  # node = o(cut, ys, left=matched-subtree, right=rest-subtree);
+  # leaf = a Num of d2h. Splits only where both sides are non-empty.
+  ys = adds(y(r) for r in rows)
+  if cut := pick(rows, lvl):
+    at, lo, hi = cut
+    yes = [r for r in rows if     has(r[at], lo, hi)]
+    no  = [r for r in rows if not has(r[at], lo, hi)]
+    if yes and no:
+      return o(at=at, lo=lo, hi=hi, ys=ys,
+               left =build(data, yes, lvl + 1, y, pick),
+               right=build(data, no,  lvl + 1, y, pick))
+  return ys
 
 def ifan(data, y):
-  # independent fan (FFTrees): rank cues ONCE on root, keep top `depth`;
-  # each level reuses order[lvl], fanning BOTH exit directions.
-  best = {}                           # lowest-score (best) cut per cue
-  for c in cuts(data, data.rows, y):
-    best[c[1]] = min(best.get(c[1], c), c)
-  order = [c[1:4] for c in sorted(best.values())[:the.depth]]  # (at,lo,hi)
-  def blades(rows, lvl):
-    if lvl < len(order):                # stop when out of ranked cues
-      yield *order[lvl], False
-      yield *order[lvl], True
-  return blades
+  # global discretization: rank cues ONCE on root; every node at level
+  # lvl splits on order[lvl] (an oblivious tree).
+  best = {}
+  for c in cuts(data, data.rows, y): best[c[1]] = min(best.get(c[1], c), c)
+  order = [c[1:4] for c in sorted(best.values())[:the.depth]]
+  return lambda rows, lvl: order[lvl] if lvl < len(order) else None
 
 def dfan(data, y):
-  # dependent fan: re-cut the branch rows; STREAM cuts (no list), keep
-  # only the running min- and max-d2h, exit the matched side (yes=True).
+  # local discretization: re-cut each node's rows, split on the best cut.
   floor = len(data.rows) ** .33
-  def blades(rows, lvl):
-    lo = hi = None
-    for c in cuts(data, rows, y):
-      if n_(c[4]) > floor:
-        if lo is None or mu_(c[4]) < mu_(lo[4]): lo = c
-        if hi is None or mu_(c[4]) > mu_(hi[4]): hi = c
-    for c in (lo, hi):
-      if c: yield c[1], c[2], c[3], True
-  return blades
+  def pick(rows, lvl):
+    if lvl < the.depth:
+      cs = [c for c in cuts(data, rows, y) if n_(c[4]) > floor]
+      if cs: return min(cs, key=lambda c: c[0])[1:4]
+  return pick
+
+def leaf(t): return t if nump(t) else t.ys   # a node collapsed to its Num
+
+def walk(t):
+  # the fan: yield (bias, fft) for every exit-pattern of the binary tree.
+  if nump(t):
+    yield "", t
+  else:
+    for yes in (False, True):                 # which child exits as a leaf
+      exit, cont = (t.left, t.right) if yes else (t.right, t.left)
+      for bias, rest in walk(cont):
+        yield str(int(yes)) + bias, o(at=t.at, lo=t.lo, hi=t.hi, yes=yes,
+                 left=leaf(exit), right=rest)
 
 #-- 5. use a tree -----------------------------------------------
 def predict(t, row):
