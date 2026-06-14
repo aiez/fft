@@ -8,7 +8,7 @@ Options:
  -b bins     bins=7
  -d depth    depth=4
  -R Round    Round=2
- -F fan      cue fan: ifan|dfan  Fan=ifan
+ -D disc     discretize once|many  Discretize=once
  -f file     file=$DOOT/optimiz/auto93.csv
 
 """
@@ -126,13 +126,12 @@ def disty(data, row):
 
 def has(v, lo, hi): return v == "?" or lo <= v <= hi
 
-def trees(data, y=None):
-  # Build ONE binary tree (split rows matched/rest, recurse), then the
-  # fan = walk it, choosing which child exits at each level. The ONLY
-  # ifan/dfan difference is `pick`: which cut splits a node.
+def tree(data, y=None):
+  # Build ONE binary tree: split rows matched/rest, recurse. The only
+  # discretize once|many difference is `pick` (global vs per-node cuts).
   y    = memo(y or (lambda r: disty(data, r)))
-  pick = (dfan if the.Fan == "dfan" else ifan)(data, y)
-  return walk(build(data, data.rows, 0, y, pick))
+  pick = (many if the.Discretize == "many" else once)(data, y)
+  return build(data, data.rows, 0, y, pick)
 
 def build(data, rows, lvl, y, pick):
   # node = o(cut, ys, left=matched-subtree, right=rest-subtree);
@@ -140,24 +139,24 @@ def build(data, rows, lvl, y, pick):
   ys = adds(y(r) for r in rows)
   if cut := pick(rows, lvl):
     at, lo, hi = cut
-    yes = [r for r in rows if     has(r[at], lo, hi)]
-    no  = [r for r in rows if not has(r[at], lo, hi)]
+    yes, no = [], []
+    for r in rows: (yes if has(r[at], lo, hi) else no).append(r)
     if yes and no:
       return o(at=at, lo=lo, hi=hi, ys=ys,
                left =build(data, yes, lvl + 1, y, pick),
                right=build(data, no,  lvl + 1, y, pick))
   return ys
 
-def ifan(data, y):
-  # global discretization: rank cues ONCE on root; every node at level
-  # lvl splits on order[lvl] (an oblivious tree).
+def once(data, y):
+  # discretize ONCE on root: rank cues, every node at level lvl splits
+  # on order[lvl] (an oblivious tree).
   best = {}
   for c in cuts(data, data.rows, y): best[c[1]] = min(best.get(c[1], c), c)
   order = [c[1:4] for c in sorted(best.values())[:the.depth]]
   return lambda rows, lvl: order[lvl] if lvl < len(order) else None
 
-def dfan(data, y):
-  # local discretization: re-cut each node's rows, split on the best cut.
+def many(data, y):
+  # discretize per node: re-cut this node's rows, split on the best cut.
   floor = len(data.rows) ** .33
   def pick(rows, lvl):
     if lvl < the.depth:
@@ -165,10 +164,15 @@ def dfan(data, y):
       if cs: return min(cs, key=lambda c: c[0])[1:4]
   return pick
 
+#-- 5. FFTs: post-process a tree into the exit-pattern fan ------
+def trees(data, y=None):
+  # Fan a binary tree into FFTs: at each level one child exits as a
+  # leaf, the other continues. 2^depth patterns = 2^depth walks.
+  return walk(tree(data, y))
+
 def leaf(t): return t if nump(t) else t.ys   # a node collapsed to its Num
 
 def walk(t):
-  # the fan: yield (bias, fft) for every exit-pattern of the binary tree.
   if nump(t):
     yield "", t
   else:
@@ -178,7 +182,6 @@ def walk(t):
         yield str(int(yes)) + bias, o(at=t.at, lo=t.lo, hi=t.hi, yes=yes,
                  left=leaf(exit), right=rest)
 
-#-- 5. use a tree -----------------------------------------------
 def predict(t, row):
   while not nump(t):              # left = exit leaf, right = fall-through
     t = t.left if has(row[t.at], t.lo, t.hi) == t.yes else t.right
