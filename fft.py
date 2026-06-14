@@ -155,10 +155,9 @@ def ifan(data, y):
     best[c[1]] = min(best.get(c[1], c), c)
   order = [c[1:4] for c in sorted(best.values())[:the.depth]]  # (at,lo,hi)
   def blades(rows, lvl):
-    if lvl < len(order):
-      at, lo, hi = order[lvl]
-      yield at, lo, hi, False
-      yield at, lo, hi, True
+    if lvl < len(order):                # stop when out of ranked cues
+      yield *order[lvl], False
+      yield *order[lvl], True
   return blades
 
 def dfan(data, y):
