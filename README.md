@@ -1,18 +1,18 @@
 <!-- Copyright (c) 2026 Tim Menzies, MIT License https://opensource.org/licenses/MIT -->
 <img align="right" src="https://img.shields.io/badge/Purpose-AI·Applications·Teaching-7b68ee?logo=githubcopilot&logoColor=white" alt="Purpose"> <a href="https://timm.fyi"> <img align="right" src="https://img.shields.io/badge/Author-timm-dc143c?logo=readme&logoColor=white" alt="Author"></a> <img align="right" src="https://img.shields.io/badge/Language-Python-000080?logo=python&logoColor=white" alt="Language"><a href="https://choosealicense.com/licenses/mit/"> <img align="right" src="https://img.shields.io/badge/License-MIT-32cd32?logo=open-source-initiative&logoColor=white" alt="License"></a> 
 
-### [http://tiny.cc/fft](http://tiny.cc/fft)
+### [https://github.com/aiez/fft](https://github.com/aiez/fft)
 A fast-and-frugal tree (FFT) makes urgent binary choices via a few yes/no questions, deliberately ignoring most of the data: fast since little computation, frugal since it often stops after one or two cues. Here: `fft.py` is the core (one pass = 16 candidate trees, one per bias string, from min-variance cuts on incremental Welford stats; ~240 lines, pure Python, no deps); `eval.py` samples many such trees and picks winners cheaply (successive halving, Hoeffding racing), scoring accuracy plus fairness. Data is CSV; column-name suffix tags type and goal.
 
 ```bash
 # install and test
-git clone http://tiny.cc/optimiz && git clone http://tiny.cc/fft fft
+git clone https://github.com/aiez/optimiz && git clone https://github.com/aiez/fft fft
 cd fft && python3 -B fft.py -f ../optimiz/auto93.csv
 ```
 
 **Sections:** [NAME](#name) | [SYNOPSIS](#synopsis) | [OPTIONS](#options) | [DATA](#data) | [TESTS](#tests) | [TREE OUTPUT](#tree-output) | [EXIT](#exit) | [SEE ALSO](#see-also) | [LICENSE](#license) | [AUTHOR](#author)
 
-**Files:** [fft.py](http://tiny.cc/fft#file-fft-py) | [eval.py](http://tiny.cc/fft#file-eval-py)
+**Files:** [fft.py](https://github.com/aiez/fft#file-fft-py) | [eval.py](https://github.com/aiez/fft#file-eval-py)
 
 ## NAME
 
@@ -98,9 +98,9 @@ cd fft && python3 -B fft.py -f ../optimiz/auto93.csv
 
 ## SEE ALSO
 
-    http://tiny.cc/fairnez  fairness CSVs scored by eval.py
-    http://tiny.cc/optimiz  example CSVs (auto93, config_SS-N, ...)
-    http://tiny.cc/konfig   shared Makefile, bashrc, nvim, tmux
+    https://github.com/aiez/fairnez  fairness CSVs scored by eval.py
+    https://github.com/aiez/optimiz  example CSVs (auto93, config_SS-N, ...)
+    https://github.com/aiez/konfig   shared Makefile, bashrc, nvim, tmux
 
 ## LICENSE
 

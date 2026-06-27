@@ -4,5 +4,5 @@
 |  _|  _| |_ 
 |_| |_|  \__|
              
-fast-frugal multi-objective trees. http://tiny.cc/fft
+fast-frugal multi-objective trees. https://github.com/aiez/fft
 "a few sharp questions beat a big model."
