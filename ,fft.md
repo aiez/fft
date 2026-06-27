@@ -12,7 +12,7 @@ cd fft && python3 -B fft.py -f ../optimiz/auto93.csv
 
 **Sections:** [NAME](#name) | [SYNOPSIS](#synopsis) | [OPTIONS](#options) | [DATA](#data) | [TESTS](#tests) | [TREE OUTPUT](#tree-output) | [EXIT](#exit) | [SEE ALSO](#see-also) | [LICENSE](#license) | [AUTHOR](#author)
 
-**Files:** [fft.py](#file-fft-py) | [eval.py](#file-eval-py)
+**Files:** [fft.py](http://tiny.cc/fft#file-fft-py) | [eval.py](http://tiny.cc/fft#file-eval-py)
 
 ## NAME
 
